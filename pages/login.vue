@@ -20,8 +20,15 @@
 	  <u-form-item >
 	    <checkbox-group>
 	      <label>
-	        <checkbox value="cb"  :checked="islong" />
-	        七天免登录
+	    			<view>
+	    				<checkbox-group @change="change">
+	    					<label>
+	    						<checkbox value="cb" :checked=islong />七天免登录
+	    					</label>
+	    			
+	    				</checkbox-group>
+	    			</view>
+	      
 	      </label>
 	    </checkbox-group>
 	  </u-form-item>
@@ -37,12 +44,15 @@
 
 <script>
 import { log } from 'util';
-import { login,getUserInfo  } from '../api/user.js';
+import { login,getUserInfo ,refreshToken } from '../api/user.js';
 	export default {
 		data() {
 		
 			return {
 				islong:false,
+				checkbox1: [0],
+				
+				range: [{value: 0,text: " 七天免登录"},{value: 1,text: " 七天登录"}],
 				captchaUrl:'',
 				//用户全局信息
 				userInfo: {},
@@ -89,6 +99,12 @@ import { login,getUserInfo  } from '../api/user.js';
 			this.$refs.formRef?.setRules(this.formRules);
 		},
 		methods: {
+			change(e){
+			
+				if(e.target.value[0]=='cb'){
+						this.islong=true
+				}	
+			},
 			async init() {
 				uni.getSystemInfo({
 				  success: function (res) {
@@ -122,10 +138,19 @@ import { login,getUserInfo  } from '../api/user.js';
 		    if (this.loginBn.code == 0) {
 		 
 		      this.$session.setUser(this.loginBn.data);
+			  //7天免登录判断
+		
 		      // 开始跳转
 			  uni.setStorageSync('token',this.loginBn.data['accessToken'])
+			  if(this.islong){
+			  				  console.log('islong')
+			  refreshToken({expire:168}).then(res=>{
+			  					console.log('longres',res.data.data['accessToken'])
+								 uni.setStorageSync('token',res.data.data['accessToken'])
+			  				})
+			   }
 			  await getUserInfo().then(res=>uni.setStorageSync('user',res.data.data))
-		
+			
 			 // 开始跳转
 uni.reLaunch({
     url: '/pages/index'
