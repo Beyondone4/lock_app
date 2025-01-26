@@ -131,7 +131,7 @@
 				</uni-forms-item>
 	
 	
-			<uni-forms-item  label="指定锁具" name="name">
+			<uni-forms-item  v-if="orderstep.task<2"  label="指定锁具" name="name">
 					<zqs-select
 					  :multiple="false"
 					  :list="this.lockList"
@@ -300,7 +300,7 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 				});
 			}
 			getUserList({pageNo:-1}).then(res=>{
-				humansData =res.data.data.pageData
+				this.humansData =res.data.data.pageData
 			})
 
 			this.init();

@@ -2,6 +2,7 @@
 // #ifndef VUE3
 import Vue from 'vue'
 import App from './App'
+import store from './store'
 import {
 	setCurrentPage,
 	Validate,
@@ -20,6 +21,7 @@ import Session from '@/common/Session.js'
 import uView from './uni_modules/diy-uview-ui';
 Vue.use(uView);
 Vue.config.productionTip = false
+Vue.prototype.$store = store
 Vue.prototype.$tools = new Tools()
 Vue.prototype.$http = new HttpService()
 Vue.prototype.$session = Session
@@ -36,6 +38,7 @@ Vue.prototype.getOption = getOption
 App.mpType = 'app'
 
 const app = new Vue({
+	store,
 	...App
 })
 

@@ -1,7 +1,7 @@
 <template>
   <view class="container container15293">
     <view>
-      <button @click="openBluetoothAdapter">开始搜索蓝牙设备</button>
+      <button @click="startopen">开始搜索蓝牙设备</button>
       <button @click="closeBLEConnection">断开</button>
       <!-- 显示搜索到的设备列表 -->
       <view v-if="devices.length > 0">
@@ -16,16 +16,16 @@
           </text>
           <button
             style="margin-left: 10px;"
-            @click="connectBluetoothDevice(device)"
+            @click="getLock(device)"
           >
             选择此锁具
           </button>
-		  <button
+<!-- 		  <button
 		    style="margin-left: 10px;"
 		    @click="getLockInstruct"
 		  >
 		    发送指令
-		  </button>
+		  </button> -->
         </view>
       </view>
     </view>
@@ -45,7 +45,7 @@ mixins:[bluetooth],
     return {
 
       devices: [], // 用于存储符合过滤条件的蓝牙设备列表
-		instructCount:0,
+
       /**
        * 新增的滚码（指令计数器）
        * 在当前蓝牙连接会话中，每次成功执行任意指令都会自增。
@@ -56,7 +56,15 @@ mixins:[bluetooth],
   },
   watch:{
 	  isConnect(val){
-		  if(val) this.getLockInstruct()
+		  if(val){	
+			  this.getLockInstruct()
+			  setTimeout(() => {
+			      this.closeBLEConnection()
+			  }, 1000 * 2)
+			 
+			  uni.navigateBack({
+	       delta: 1
+	     })} 
 	  }
   },
   onLoad() {
@@ -64,8 +72,15 @@ mixins:[bluetooth],
   },
   methods: {
 
+getLock(device){
+	
+	this.connectBluetoothDevice(device)
 
-
+},
+startopen(){
+	
+	this.openBluetoothAdapter()
+}
 
   
 },

@@ -207,7 +207,7 @@ let station=this
 						adminUserId,
 						stationType
 						}
-					await updateStation(upform,id).then(res=>{
+					await updateStation(this.selectedItem,id).then(res=>{
 						console.log(res)
 					})
 				}

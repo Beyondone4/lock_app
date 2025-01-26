@@ -21,6 +21,7 @@
 				<uni-table v-if="stationList && stationList.length > 0" ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
 						<uni-th width="50" align="center">锁具ID</uni-th>
+						<uni-th width="50" align="center">锁具名称</uni-th>
 						<uni-th width="50" align="center">锁具SN</uni-th>
 						<uni-th  align="center">锁具MAC</uni-th>
 						<uni-th  align="center">锁具位置</uni-th>
@@ -31,7 +32,7 @@
 					</uni-tr>
 					<uni-tr  v-for="(item, index) in lockList" :key="index" >
 						<uni-td>{{ item.id }}</uni-td>
-		
+		<uni-td align="center">{{ item.name }}</uni-td>
 						<uni-td align="center">{{ item.sn }}</uni-td>
 						<uni-td align="center">{{ item.mac }}</uni-td>
 						<uni-td align="center">{{ item.location }}</uni-td>
@@ -75,15 +76,45 @@
 		
 		></zqs-select>
 	</uni-forms-item>
+	<uni-forms-item  name="name" label="锁具名称">
+		<uni-easyinput type="text" v-model="selectedItem.name"   />
+	</uni-forms-item>
+	<uni-forms-item  name="location" label="锁具位置">
+		<uni-easyinput type="text" v-model="selectedItem.location"   />
+	</uni-forms-item>
+	<uni-forms-item  name="code" label="锁具描述">
+		<uni-easyinput type="text" v-model="selectedItem.description"  />
+	</uni-forms-item>
 					<uni-forms-item v-if="currentModal==='create'" label="选择锁具" name="name">
-									<button type="primary" @tap="goToPageB" size="mini">选择锁具</button>
+									<button type="primary" @tap="openBluetoothAdapter" size="mini">选择锁具</button>
 					</uni-forms-item>
-					<uni-forms-item  name="location" label="锁具位置">
-						<uni-easyinput type="text" v-model="selectedItem.location"   />
+					<uni-forms-item>
+						<view v-if="devices.length > 0">
+						        <view
+						          v-for="(device, index) in devices"
+						          :key="index"
+						          style="margin-top: 10px; padding: 10px; border: 1px solid #eee;"
+						        >
+						          <text>
+						            {{ device.name || '未知名称' }} -
+						            {{ device.deviceId }}
+						          </text>
+						          <button
+						            style="margin-left: 10px;"
+						            @click="connectBluetoothDevice(device)"
+						          >
+						            选择此锁具
+						          </button>
+						<!-- 		  <button
+								    style="margin-left: 10px;"
+								    @click="getLockInstruct"
+								  >
+								    发送指令
+								  </button> -->
+						        </view>
+								</view>
 					</uni-forms-item>
-					<uni-forms-item  name="code" label="锁具描述">
-						<uni-easyinput type="text" v-model="selectedItem.description"  />
-					</uni-forms-item>
+		
 
 			
 	</uni-forms>
@@ -123,8 +154,9 @@
 </template>
 
 <script>
-import {getUserInfo,getUserList,getLockCmd,getStationList,deleteLocks,deleteStation,deleteStations,addStation, updateStation, getLockList, addLock} from '../../api/user.js'
+import {getUserInfo,getUserList,getLockCmd,getStationList,deleteLocks,deleteStation,deleteStations,addStation, updateStation, getLockList, addLock, updateLock} from '../../api/user.js'
 import bluetooth from '../../mixins/bluetooth.js'
+import store from '@/store/index.js';
 	export default {
 		mixins:[bluetooth],
 		data() {
@@ -147,15 +179,16 @@ import bluetooth from '../../mixins/bluetooth.js'
 				globalOption: {},
 				//自定义全局变量
 				globalData: { iduser: 0, storeflowid: 0 },
-				someDataFromB:{},
+		
 				stationForm:{},
-				baseDataFromB:{},
-				roll:null,
+
+				
 				createItem:{},
 				    selectedItem: {
 				      stationId: null,
 				      location: '',
 				      description: '',
+					  name:'',
 				      // ... 其它需要的字段全部初始化
 				    },
 				selectedIds:[],
@@ -185,9 +218,9 @@ import bluetooth from '../../mixins/bluetooth.js'
 			};
 		},
 		watch:{
-			// isConnect(val):{
-			// 	if(val) this.getinstruct
-			// }
+			isConnect(val){
+				if(val) this.getLockInstruct()
+			}
 		},
 		computed: {
 			
@@ -313,33 +346,26 @@ import bluetooth from '../../mixins/bluetooth.js'
 				if(this.currentModal=='create'){
 					console.log(this.selectedItem)
 				// 在页面B中从本地存储中读取数据
-				
-		
-			let id=null
-				
+					let id=null
 					await addLock({adminId:this.currentUser.id,enable:true,...this.selectedItem,...this.baseDataFromB,...this.someDataFromB}).then(res=>{
 						console.log(res.data.data)
 						id=res.data.data
 					
 					})
-					await  getLockCmd({id:id,roll:this.roll,type:0x10}).then(res=>{
-												 console.log('10get',res)
-					})
+					//请求10命令更改密钥
+					// await  getLockCmd({id:id,roll:this.roll,type:0x10}).then(res=>{
+					// 							 console.log('10get',res)
+					// })
 					//todo 拿着命令去执行10命令
-					//todo 根据锁返回信息来调用接口更新锁的currentkey
+					// console.log('着命令去执行10命',this.roll)
 					
+					//todo 根据锁返回信息来调用接口更新锁的currentkey
 				}
-		
 				if(this.currentModal=='update'){
-					console.log(this.selectedItem)
+					console.log('this.selectedItem',this.selectedItem)
 					let {id,code,name,adminUserId,stationType}=this.selectedItem
-					let upform={
-						code,
-						name,
-						adminUserId,
-						stationType
-						}
-					await updateStation(upform,id).then(res=>{
+				
+					await updateLock(this.selectedItem,id).then(res=>{
 						console.log(res)
 					})
 				}
@@ -509,6 +535,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 					        stationId: '',
 					        location: '',
 					        description: '',
+							name:'',
 					        // ... 其它字段的默认值
 					      }
 				

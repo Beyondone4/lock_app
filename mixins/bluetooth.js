@@ -1,6 +1,7 @@
 import {
    getLockCmd
 } from  '../api/user'
+import store from '@/store/index.js';
 let lock = null
 
 export default {
@@ -16,10 +17,13 @@ export default {
             locktimer: null, //搜索锁的计时器
             serviceId: '', // uuid
             characteristicId:[] ,// 特征值集合
+			devices:[],
             loadingText:'正在连接蓝牙...',
             backData:[], // 蓝牙返回的数据集合
             orderType:1 ,// 命令
 			roll:0,
+			baseDataFromB:{},
+			someDataFromB:{},
         }
     },
     created() {
@@ -62,7 +66,63 @@ export default {
 		//   }
 		//   return byteArray;
 		// },
+		parseLockData(rawHex) {
+		  // 第 11 个字节下标是 10，每字节占 2 个 hex 字符 => 跳过前 20 个 hex 字符
+		  const subHex = rawHex.slice(20);
 		
+		  let data = {};
+		  let offset = 0;
+		
+		  // 1. 硬件版本号 (1字节 => 2个hex字符)
+		  data.hardwareVersion = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 2. 软件版本号 (2字节 => 4个hex字符)
+		  data.softwareVersion = subHex.slice(offset, offset + 4);
+		  offset += 4;
+		
+		  // 3. 厂商ID (4字节 => 8个hex字符)
+		  // data.vendorId = subHex.slice(offset, offset + 8);
+		  offset += 8;
+		
+		  // 4. 报警模式 (1字节 => 2个hex字符)
+		  data.alarmMode = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 5. 锁状态 (1字节 => 2个hex字符)
+		  data.lockStatus = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 6. 备用数据 (4字节 => 8个hex字符)
+		  data.backupDate = subHex.slice(offset, offset + 8);
+		  offset += 8;
+		
+		  // 7. 是否新锁 (1字节 => 2个hex字符)
+		  data.newLock = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 8. 开锁记录 (2字节 => 4个hex字符)
+		  data.unlockRecord = subHex.slice(offset, offset + 4);
+		  offset += 4;
+		
+		  // 9. 电量 (1字节 => 2个hex字符)
+		  data.power = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 10. 静音模式 (1字节 => 2个hex字符)
+		  data.muted = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 11. 休眠模式 (1字节 => 2个hex字符)
+		  data.hibernate = subHex.slice(offset, offset + 2);
+		  offset += 2;
+		
+		  // 12. 校验和 (1字节 => 2个hex字符) —— 题目要求忽略，不放进 data
+		  // 这里可以直接 offset += 2 跳过
+		  offset += 2;
+		
+		  return data;
+		},
 		// 将 MAC 地址由 "C1:01:01:01:E1:B2" 解析为 [193, 1, 1, 1, 225, 178] ...
 		parseMacAddress(macStr) {
 		  const parts = macStr.split(':');
@@ -155,6 +215,7 @@ export default {
         // 初始化蓝牙
         openBluetoothAdapter() {
             this.unLockType = 1;
+			this.roll=0
             uni.openBluetoothAdapter({
                 success(res) {
                     lock.isConnect = false
@@ -198,14 +259,14 @@ export default {
                     uni.onBluetoothDeviceFound(lock.watchNewBluetooth)
                     lock.locktimer = setTimeout(() => {
                         uni.showToast({
-                            title: '未找到设备，请重试！',
+                            title: '',
                             icon: 'none',
                             duration: 1000,
                             complete: function() {
                                 uni.stopBluetoothDevicesDiscovery()
                             }
                         });
-                    }, 1000 * 60)
+                    }, 1000 * 6)
                 },
                 fail(e) {
                     uni.hideLoading();
@@ -243,7 +304,7 @@ export default {
 	      this.serviceId = device.advertisServiceUUIDs[0] || '';
 		  console.log('serviceId',this.serviceId)
 	      this.lockname = device.name.toString();
-		this.getOpenerEventChannel().emit('LockBaseInfo',{mac:this.deviceId.replace(/:/g, ''),sn:this.lockname,factoryId:this.lockname,factoryKey:'7856341201efbc9a89674523efdecdab',currentKey:'7856341201efbc9a89674523efdecdab'});
+		this.baseDataFromB={mac:this.deviceId.replace(/:/g, ''),sn:this.lockname,factoryId:this.lockname,factoryKey:'7856341201efbc9a89674523efdecdab',currentKey:'7856341201efbc9a89674523efdecdab'}
 	      // 如果要向上个页面传值，可以使用 eventChannel
 	      // this.getOpenerEventChannel().emit('LockBaseInfo', {
 	      //   mac: this.deviceId.replace(/:/g, ''),
@@ -267,7 +328,7 @@ export default {
                         // 获取服务，再获取特征值，这里写死，就不用再获取
                         // lock.getServices()
                         lock.getCharacteristics() // 获取特征值
-                    }, 6000)
+                    }, 2000)
                     // 关闭搜索 
                 },
                 fail(e) {
@@ -305,7 +366,8 @@ export default {
                     lock.characteristicId = res.characteristics || [];
                     lock.notifyBLECharacteristicValueChange()
 					lock.onBLECharacteristicValueChange(lock.unLockType); // 指令发送成功后监听数据回传
-
+					let x={'deviceId':lock.deviceId,'serviceId':lock.serviceId,'characteristicId':lock.characteristicId}
+					store.dispatch('updateLock',x)
                     lock.loadingText = '蓝牙开锁中，请稍后...';
                 },
                 fail(err) {
@@ -344,6 +406,8 @@ export default {
                 const data = lock.ab2hex(res.value);
                 const code = data.slice(0, 2);
                 console.log('接收数据=',data);
+				lock.someDataFromB=lock.parseLockData(data)
+				
                 if(lock.backData.indexOf(data) == -1){
                     lock.backData.push(data);
                 }
@@ -357,6 +421,7 @@ export default {
             // _type: 1 读取门锁信息 2初始化锁 3开锁
             const orders = ['010200107d9a0538979e7bc6c2a731c9622a82b2','028b000000000000000000000000000000000000']
             const order = ['0101000803795A5B33E0E7AEE100000000000000']; //
+			console.log('10this.deviceId',this.deviceId)
             if(!this.deviceId) return uni.$u.toast('请先连接蓝牙锁')
             try {
                 // 开启按钮loading

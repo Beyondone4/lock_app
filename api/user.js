@@ -74,10 +74,17 @@ export const addLock = (params={}) => {
  	        params: params
  })
 }
+export const updateLock = (params={},id) => {
+ return 	request({
+ 			method: 'PATCH',
+ 	        url: '/lock/'+id,
+ 	        params: params
+ })
+}
 export const updateStation = (params={},id) => {
  return 	request({
  			method: 'PATCH',
- 	        url: '/station/?id='+id,
+ 	        url: '/station/'+id,
  	        params: params
  })
 }
