@@ -1,8 +1,8 @@
 import {
-    getLockInstructApi
-} from '@/api/isolated/process/index.js'
+   getLockCmd
+} from  '../api/user'
 let lock = null
-import crypto from '@/utils/crypto.js'
+
 export default {
     data() {
         return {
@@ -18,7 +18,8 @@ export default {
             characteristicId:[] ,// 特征值集合
             loadingText:'正在连接蓝牙...',
             backData:[], // 蓝牙返回的数据集合
-            orderType:1 // 命令
+            orderType:1 ,// 命令
+			roll:0,
         }
     },
     created() {
@@ -43,6 +44,82 @@ export default {
         }
     },
     methods: {
+		// 将十六进制字符串转为 byte 数组
+		// hexStringToBytes(hexString) {
+		//   if (hexString.startsWith('0x') || hexString.startsWith('0X')) {
+		//     hexString = hexString.slice(2);
+		//   }
+		//   if (hexString.length % 2 !== 0) {
+		//     throw new Error('无效的十六进制字符串，长度不是偶数');
+		//   }
+		//   const byteArray = [];
+		//   for (let i = 0; i < hexString.length; i += 2) {
+		//     const byte = parseInt(hexString.slice(i, i + 2), 16);
+		//     if (isNaN(byte)) {
+		//       throw new Error('无效的十六进制字符串，包含非十六进制字符');
+		//     }
+		//     byteArray.push(byte);
+		//   }
+		//   return byteArray;
+		// },
+		
+		// 将 MAC 地址由 "C1:01:01:01:E1:B2" 解析为 [193, 1, 1, 1, 225, 178] ...
+		parseMacAddress(macStr) {
+		  const parts = macStr.split(':');
+		  const bytes = parts.map(part => parseInt(part, 16));
+		  return bytes;
+		},
+		
+		// 返回 6 字节的时间戳数组 [year, month, day, hour, minute, second] (year 只取 mod 100)
+		getTimestamp() {
+		  const now = new Date();
+		  const year   = now.getFullYear() % 100;
+		  const month  = now.getMonth() + 1;
+		  const day    = now.getDate();
+		  const hour   = now.getHours();
+		  const minute = now.getMinutes();
+		  const second = now.getSeconds();
+		  return [
+		    year & 0xFF,
+		    month & 0xFF,
+		    day & 0xFF,
+		    hour & 0xFF,
+		    minute & 0xFF,
+		    second & 0xFF
+		  ];
+		},
+		
+		
+		GenerateCommand(cmd, roll, mac) {
+		  const b = new Uint8Array(17);
+		  // 将 mac 转成字节数组
+		  
+		  let byteMac = this.parseMacAddress(mac);
+		  console.log('in gen')
+		  // b[0] ~ b[3] 4字节
+		  b[0] = cmd;       // 例如 0xE0
+		  b[1] = roll;      // 滚码计数
+		  b[2] = 0x00;
+		  b[3] = 0x0D;
+		  // 拷贝 MAC 到 b[4..9]（6字节）
+		  for (let i = 0; i < 6; i++) {
+		    b[4 + i] = byteMac[i] & 0xFF;
+		  }
+		  // 拷贝 Timestamp 到 b[10..15]（6字节）
+		  const timestamp = this.getTimestamp();
+		  for (let i = 0; i < 6; i++) {
+		    b[10 + i] = timestamp[i];
+		  }
+		  // 前16字节累加求和 => b[16]
+		  let sum = 0;
+		  for (let i = 0; i < 16; i++) {
+		    sum += b[i];
+		  }
+		  b[16] = sum & 0xFF;
+		  console.log('指令内容:', b);
+		  return b.buffer; // 返回 ArrayBuffer
+		},
+		
         // ArrayBuffer转16进度字符串
         ab2hex(buffer) {
             const hexArr = Array.prototype.map.call(
@@ -69,6 +146,12 @@ export default {
             })
             return buffer
         },
+		// 是否是目标设备（可根据你的实际项目做改动）
+		isTargetDevice(advertisData, targetName) {
+		  const extractedName = advertisData.slice(12, 26);
+		  return extractedName.toLowerCase() === targetName.toLowerCase();
+		},
+		
         // 初始化蓝牙
         openBluetoothAdapter() {
             this.unLockType = 1;
@@ -133,23 +216,44 @@ export default {
             })
         },
         //监听附近设备
-        watchNewBluetooth(res) {
-            res.devices.forEach(device => {
-                let mac = ''
-                for (let s of device.deviceId) {
-                    if (s !== ':') mac += s
-                }
-                if (mac.indexOf(lock.JudegeDeviceId)>-1) {
-                    console.log('找到了 mac',mac);
-                    lock.serviceId = device.advertisServiceUUIDs?device.advertisServiceUUIDs[0] : '';
-                    lock.deviceId = device.deviceId.toString()
-                    lock.createBLEConnection();
-                    uni.stopBluetoothDevicesDiscovery()
-                    clearTimeout(lock.locktimer)
-                    return
-                }
-            })
-        },
+    watchNewBluetooth(res) {
+      res.devices.forEach(device => {
+        let x = this.ab2hex(device.advertisData || new ArrayBuffer(0));
+        if (this.isTargetDevice(x, '626c654c6f636b')) {
+          let mac = device.deviceId.replace(/:/g, '');
+          console.log('发现符合条件的设备:', device, 'MAC:', mac);
+			uni.hideLoading();
+          if (!this.devices.find(d => d.deviceId === device.deviceId)) {
+            this.devices.push({
+              name: device.name || '未知名称',
+              deviceId: device.deviceId,
+              advertisServiceUUIDs: device.advertisServiceUUIDs || []
+            });
+          }
+        }
+      });
+    },
+	    // 用户点击列表中的“连接”按钮时调用
+	    connectBluetoothDevice(device) {
+	      uni.stopBluetoothDevicesDiscovery(); // 可选：停止搜索
+	
+	      this.isConnect = false;
+	      this.isLock = false;
+	      this.deviceId = device.deviceId.toString();
+	      this.serviceId = device.advertisServiceUUIDs[0] || '';
+		  console.log('serviceId',this.serviceId)
+	      this.lockname = device.name.toString();
+		this.getOpenerEventChannel().emit('LockBaseInfo',{mac:this.deviceId.replace(/:/g, ''),sn:this.lockname,factoryId:this.lockname,factoryKey:'7856341201efbc9a89674523efdecdab',currentKey:'7856341201efbc9a89674523efdecdab'});
+	      // 如果要向上个页面传值，可以使用 eventChannel
+	      // this.getOpenerEventChannel().emit('LockBaseInfo', {
+	      //   mac: this.deviceId.replace(/:/g, ''),
+	      //   sn: this.lockname,
+	      //   ...
+	      // });
+	
+	      // 开始连接
+	      this.createBLEConnection();
+	    },
         // 连接蓝牙
         createBLEConnection() {
             uni.createBLEConnection({
@@ -200,6 +304,8 @@ export default {
                     console.log('获取特征值',res);
                     lock.characteristicId = res.characteristics || [];
                     lock.notifyBLECharacteristicValueChange()
+					lock.onBLECharacteristicValueChange(lock.unLockType); // 指令发送成功后监听数据回传
+
                     lock.loadingText = '蓝牙开锁中，请稍后...';
                 },
                 fail(err) {
@@ -212,11 +318,12 @@ export default {
             uni.notifyBLECharacteristicValueChange({
                 deviceId: lock.deviceId, // 设备id
                 serviceId: lock.serviceId, // 监听指定的服务
-                characteristicId: lock.characteristicId?lock.characteristicId[0]['uuid']:'', // 监听对应的特征值
+                characteristicId: lock.characteristicId?lock.characteristicId[1]['uuid']:'', // 监听对应的特征值
                 success(res) {
                     // uni.hideLoading()
-                    lock.isConnect = true
-					lock.onBLECharacteristicValueChange(_type); // 指令发送成功后监听数据回传
+                  
+				
+					lock.isConnect = true
                     uni.$u.toast('蓝牙连接成功！')
                 },
                 fail(e) {
@@ -255,9 +362,9 @@ export default {
                 // 开启按钮loading
                 lock.unLockType = 1;
                 // 获取指令
-                // const get_order = await getLockInstructApi(lock.orderType)
+                
                 // 发送指令
-                lock.sendInstruct(order,_type);
+                lock.sendInstruct(order,lock.unLockType);
                 uni.hideLoading();
             } catch (e) {
                 uni.hideLoading();
@@ -267,15 +374,21 @@ export default {
         // 向蓝牙发送指令
         async sendInstruct(obj,_type) {
             // 必须设备的特征值支持 write 才可以成功调用
+			
             let idx = -1;
+			console.log(lock.deviceId)
+			let ins=lock.GenerateCommand(0x01,lock.roll,lock.deviceId)
+			console.log('进入send')
+			
+			lock.roll=lock.roll+1
             while(idx<obj.length-1){
                 idx += 1;
                 await lock.sendDelay(150,lock.getBuffer(obj[idx])).then(buffer=>{
                     uni.writeBLECharacteristicValue({
                         deviceId: lock.deviceId,
                         serviceId: lock.serviceId,
-                        characteristicId: lock.characteristicId?lock.characteristicId[1]['uuid'].toLowerCase():'', //向蓝牙写数据的特征值，文档要求不一样
-                        value: buffer,
+                        characteristicId: lock.characteristicId?lock.characteristicId[0]['uuid'].toLowerCase():'', //向蓝牙写数据的特征值，文档要求不一样
+                        value: ins,
                         success(res) {
                             lock.unLockType = 0;
                           

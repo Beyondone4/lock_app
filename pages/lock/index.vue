@@ -124,9 +124,9 @@
 
 <script>
 import {getUserInfo,getUserList,getLockCmd,getStationList,deleteLocks,deleteStation,deleteStations,addStation, updateStation, getLockList, addLock} from '../../api/user.js'
-
-
+import bluetooth from '../../mixins/bluetooth.js'
 	export default {
+		mixins:[bluetooth],
 		data() {
 			return {
 				stationList:[],
@@ -184,8 +184,13 @@ import {getUserInfo,getUserList,getLockCmd,getStationList,deleteLocks,deleteStat
 				detail:''
 			};
 		},
+		watch:{
+			// isConnect(val):{
+			// 	if(val) this.getinstruct
+			// }
+		},
 		computed: {
-		
+			
 		    // 判断是否全选
 		    isAllSelected() {
 		      return this.humansData.data.length > 0 && this.humansData.data.every(item =>item.checked==true);
