@@ -87,6 +87,8 @@ import { login,getUserInfo ,refreshToken } from '../api/user.js';
 		},
 		onLoad(option) {
 			this.setCurrentPage(this);
+		  // 2. 进行 getUserInfo 调用
+	
 			if (option) {
 				this.setData({
 					globalOption: this.getOption(option)
@@ -106,6 +108,7 @@ import { login,getUserInfo ,refreshToken } from '../api/user.js';
 				}	
 			},
 			async init() {
+				
 				uni.getSystemInfo({
 				  success: function (res) {
 				        	uni.setStorageSync('runModel',res.model)
@@ -116,7 +119,26 @@ import { login,getUserInfo ,refreshToken } from '../api/user.js';
 			}else{
 				
 				this.captchaUrl=`http://182.92.76.31:8800/auth/captcha?${Date.now()}`
+				
 			}
+			  // 2. 进行 getUserInfo 调用
+			  try {
+			    // 如果接口请求成功
+			    const userInfo = await getUserInfo();
+			    // 可以根据返回的 userInfo 判断是否有效
+			    if (userInfo) {
+			      // 成功后跳转到 index 页面
+				  console.log(userInfo)
+		uni.reLaunch({
+		    url: '/pages/index'
+		})
+			    }
+			  } catch (error) {
+			    // 如果请求失败，什么都不做
+			    console.error('Token 校验失败或接口异常：', error);
+			  }
+
+			
 			},
 			// 登陆 API请求方法
 		async loginBnApi(param) {

@@ -23,6 +23,13 @@ export const login =  (params={}) => {
   	        params: params,
   })
 }
+export const approveOrder =  (params={},id) => {
+  return 	request({
+  			method: 'PATCH',
+  	        url: '/order/approval/'+id,
+  	        params: params,
+  })
+}
 export const createOrder =  (params={}) => {
   return 	request({
   			method: 'POST',
@@ -92,6 +99,13 @@ export const deleteStations = (params={}) => {
  return 	request({
  			method: 'DELETE',
  	        url: '/stations',
+ 	        params: params
+ })
+}
+export const deleteOrders = (params={}) => {
+ return 	request({
+ 			method: 'DELETE',
+ 	        url: '/orders',
  	        params: params
  })
 }

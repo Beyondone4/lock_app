@@ -3,7 +3,7 @@
 		<view class="flex flex-wrap diygw-col-24 flex-direction-column flex2-clz">
 		<view class="toolbar">
 		  <button class="btn" @click="clickAddFunction" >新增</button>
-		  <button class="btn" @tap="onBatchDelete">批量删除</button>
+		  <button class="btn" @tap="onDelete('batch')">批量删除</button>
 		
 		  <!-- 搜索框区域 -->
 		  <view class="search-box">
@@ -25,17 +25,17 @@
 						<uni-th width="50" align="center">状态</uni-th>
 						<uni-th width="150" align="center">设置</uni-th>
 					</uni-tr>
-					<uni-tr  v-for="(item, index) in orderList" :key="index" >
+					<uni-tr   v-for="(item, index) in orderList" :key="index" >
 						<uni-td>{{ item.id }}</uni-td>
 						<uni-td>
-							<view class="name">{{ item.operatorId }}</view>
+							<view class="name">{{ humansData.find(x=>x.id==item.dispatcherId).username }}</view>
 						</uni-td>
-						<uni-td align="center">{{ item.operatorId }}</uni-td>
-						<uni-td align="center">{{ item.status }}</uni-td>
+						<uni-td align="center">{{ humansData.find(x=>x.id==item.operatorId).username }}</uni-td>
+						<uni-td align="center">{{ OrderStatus.find(x=>x.id==item.status).name }}</uni-td>
 						<uni-td >
 						<button style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickDetailFunction(item,'detail')">详情</button>
-					<button v-if="isApproval" style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickDetailFunction(item,'detail')">审批</button>
-						<button type="warn" size="mini" >删除</button>
+					<button :disabled="isCurrentApproval(item)" v-if="isApproval" style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickApproval(item)">审批</button>
+						<button type="warn" size="mini" @click="onDelete('one',item)" >删除</button>
 						</uni-td>
 					</uni-tr>
 				</uni-table>
@@ -145,7 +145,7 @@
 				</uni-forms-item>
 		
 		
-			<uni-forms-item v-if="orderstep.task>2"   label="指定审核员" name="name">
+			<uni-forms-item v-if="orderstep.task>=2"   label="指定审核员" name="name">
 						<zqs-select
 						  :multiple="false"
 						  :list="this.humansData"
@@ -174,42 +174,94 @@
 					</view>
 				</view>
 			<uni-section title="使用插槽" type="line">
-				<uni-collapse>
-					<uni-collapse-item titleBorder="none">
-						<template v-slot:title>
-							<uni-list>
-								<uni-list-item title="标题使用自定义标题插槽" :show-extra-icon="true" :extra-icon="extraIcon">
-								</uni-list-item>
-							</uni-list>
-						</template>
-						<view class="content">
-							<text class="text">折叠内容主体，可自定义内容及样式</text>
-						</view>
-					</uni-collapse-item>
-<!-- 					<uni-collapse-item title="折叠内容使用 uni-list 组件">
-						<uni-list>
-							<uni-list-item title="列表文字"></uni-list-item>
-							<uni-list-item :disabled="true" title="列表文字" note="列表禁用状态"></uni-list-item>
-							<uni-list-item title="列表右侧显示 switch" :show-switch="true"></uni-list-item>
-							<uni-list-item :show-extra-icon="true" :extra-icon="extraIcon" title="列表左侧带扩展图标"></uni-list-item>
-							<uni-list-item title="列表左侧带略缩图" note="列表描述信息"
-								thumb="https://qiniu-web-assets.dcloud.net.cn/unidoc/zh/unicloudlogo.png"
-								thumb-size="lg" rightText="右侧文字" showArrow></uni-list-item>
-							<uni-list-item title="开启点击反馈" clickable showArrow @click="onClick"></uni-list-item>
-						</uni-list>
-					</uni-collapse-item> -->
-				</uni-collapse>
+			    <uni-collapse>
+			      <!-- 遍历 orderSteps 生成动态的折叠面板 -->
+			      <uni-collapse-item 
+			        v-for="(step, index) in selectedItem.orderSteps" 
+			        :key="step.id" 
+			        :title="`任务步骤 ${step.sort}`" 
+			        titleBorder="none">
+			        
+			        <template v-slot:title>
+			          <uni-list>
+			            <uni-list-item 
+			              :title="`步骤 ${step.sort} - 任务 ${tasks.find(item=>item.id==step.task)['name']} ${step.lockId==null?'':lockList.find(item=>item.id==step.lockId)['name']}`" 
+			              :show-extra-icon="true" 
+			              :extra-icon="extraIcon">
+			            </uni-list-item>
+			          </uni-list>
+			        </template>
+			        
+			        <view class="content">
+			          <!-- 根据用户ID判断按钮的显示 -->
+			          <button 
+					   :disabled="isCurrentStep"
+			            v-if="step.task ===1" 
+			            type="primary" 
+			            size="mini" 
+			            @click="handleUnlock(step)">
+			            开锁
+			          </button>
+			          
+			          <button 
+					   :disabled="isCurrentStep"
+			            v-if="step.task === 1" 
+			            type="primary" 
+			            size="mini" 
+			            @click="handleValidate(step)">
+			            校验
+			          </button>
+			          
+			
+			          <uni-file-picker 
+					   :disabled="isCurrentStep"
+					  v-if="step.task === 2" 
+			          	v-model="imageValue" 
+			          	fileMediatype="image" 
+			          	mode="grid" 
+						:auto-upload="false"
+						
+			          	@select="select" 
+			
+			          />
+					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 3" >
+					    <!-- 审批意见的标签 -->
+					    <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
+					      填写状态量
+					    </text>
+					    <!-- 输入框 -->
+					    <uni-easyinput 
+						:disabled="isCurrentStep"
+					      type="text" 
+					  	placeholder="填写状态量"
+					      v-model="approvalForm.comment" 
+					      style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-size: 16px; width: 100%;" 
+					    />
+					  </view>
+					 
+		<!-- 	          <button 
+					   :disabled="isCurrentStep"
+			            v-if="step.task === 3" 
+			            type="primary" 
+			            size="mini" 
+			            @click="handleUploadStatus(step)">
+			            上传状态
+			          </button> -->
+					  <button
+					   :disabled="isCurrentStep"
+					    v-if="step.task === 3 || step.task === 2" 
+					    type="primary" 
+					    size="mini" 
+					    @click="handleUploadStatus(step)">
+					    上传
+					  </button>
+			        </view>
+			        
+			      </uni-collapse-item>
+			    </uni-collapse>
 			</uni-section>
 			
-						<uni-list>
-	
-							<uni-list-item title="自定义右侧插槽" note="列表描述信息" >
-								<template v-slot:footer>
-									<button type="primary" size="mini">执行</button>
-								</template>
-							</uni-list-item>
-					
-						</uni-list>
+		
 					
 				<view class="flex justify-end">
 					<button @tap="navigateTo" data-type="clickAddStep"  class="diygw-btn green flex1 margin-xs">确认</button>
@@ -218,19 +270,73 @@
 				</view>
 			</view>
 		</view>
+		<view class="diygw-modal basic" :class="approval" style="z-index: 1000000">
+			<view class="diygw-dialog diygw-dialog-consumed basis-lg">
+				<view class="justify-end diygw-bar">
+					<view class="content"> 审批 </view>
+					<view class="action" data-type="closemodal" data-id="detail" @tap="navigateTo">
+						<i class="diy-icon-close"></i>
+					</view>
+				</view>	
+					<view class="justify-end diygw-bar">
+						<view class="content"> 
+						<text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
+						 请确认查阅工单详情后进行审批操作！
+						</text>
+						 </view>
+					
+					</view>	
+			<view style="padding: 20px; margin-top: 20px;">
+			  <!-- 审批意见的标签 -->
+			  <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
+			    审批意见
+			  </text>
+			  <!-- 输入框 -->
+			  <uni-easyinput 
+			    type="text" 
+				placeholder="默认可不填写"
+			    v-model="approvalForm.comment" 
+			    style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-size: 16px; width: 100%;" 
+			  />
+			</view>
+				
+			
+				<view class="flex justify-end">
+					<button @tap="navigateTo" data-type="toApprove"  class="diygw-btn green flex1 margin-xs">审批通过</button>
+					
+					<button data-type="noApprove" @tap="navigateTo" data-id="detail" class="diygw-btn red flex1 margin-xs">审批驳回</button>
+				</view>
+			</view>
+		</view>
 		<view class="clearfix"></view>
 	</view>
 </template>
 
 <script>
-import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderList} from '../../api/user.js'
+import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder} from '../../api/user.js'
+import { OrderStatus } from '../../enum.js';
 	export default {
 		data() {
 			return {
 				//用户全局信息
+				OrderStatus : [
+					{ id: -1, name: '已驳回', type: '' },
+					{ id: 0, name: '初始值', type: '' },
+				  { id: 1, name: '审批中', type: '' },
+				  { id: 2, name: '已审批', type: 'success' },
+				  { id: 3, name: '执行中', type: 'error' },
+				  { id: 4, name: '审批驳回', type: 'warning' },
+				  { id: 5, name: '已执行', type: 'success' },
+				  { id: 6, name: '审核中', type: 'warning' },
+				  { id: 7, name: '审核通过', type: 'error' },
+				  { id: 8, name: '确认中', type: 'success' },
+				  { id: 9, name: '已确认', type: 'success' },
+				  { id: 9, name: '已完成', type: 'success' },
+				],
 				orderSteps:[],
 				orderApprovals:[],
 				userInfo: {},
+				currentStep:{},
 				currentModal:'',//当前弹窗
 				currentModalTitle:'',//当前弹窗标题
 				inputDisabled:{
@@ -250,6 +356,12 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 				lockId:null,
 				task:null,
 				approvalId:null,
+				approvalForm:{
+					id:null,
+					approverId:null,
+					status:null,
+					comment:null
+				},
 				selectedIds:[],
 				orderStepList:[],//工单步骤集合，需转换
 				orderstep:{},//表单中表单步骤数据
@@ -265,28 +377,28 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 					name:'全选'},
 				stationList:[],
 				lockList:[],
-				orderList: {
-					
-				},
+				orderList: [],
 				tasks:[
 					{id:1,name:'开锁'},
-					{id:2,name:'关锁'},
-					{id:3,name:'上传图片'},
-					{id:4,name:'状态量'}
+				
+					{id:2,name:'上传图片'},
+					{id:3,name:'状态量'}
 				],
 	
 				returned: '',
 				add: '',
 				detail:'',
-				oderStepsModal:''
+				oderStepsModal:'',
+				approval:'',
 			};
 		},
 		computed: {
 			isApproval(){
 				let roles=uni.getStorageSync('user').roles
-				const hasId5 = roles.some(item => item.id === 5)
+				const hasId5 = roles.some(item => item.id === 5||item.id===1)
 				return hasId5
 			}
+
 		
 		  },
 		onShow() {
@@ -299,14 +411,102 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 					globalOption: this.getOption(option)
 				});
 			}
-			getUserList({pageNo:-1}).then(res=>{
-				this.humansData =res.data.data.pageData
-			})
+		
 
 			this.init();
 		},
 		methods: {
+			//todo:根据当前ordersetp变量来判断是否是当前或之后的步骤，如果是 就把对应里面的按钮都able
+			//todo:根据selectitem（所选整工单）来确定ordersetp更新时orderid的来源，然后将这个一小setp请求更改step接口
+			//判断当前用户是否需要审批，如果不是，返回true禁止审批按钮
+			isCurrentApproval(item){
+				 const targetApproval = item.orderApprovals.find(
+				        i => i.status === 1
+				      )
+					console.log('item',item)
+				      // 如果找不到或 approverId 匹配则返回 false，否则返回 true
+				      return !(targetApproval?.approverId === uni.getStorageSync('user').id)
+			},
+			clickApproval(item){
+				let thiz=this
+				thiz.approvalForm.approverId=uni.getStorageSync('user').id
+				thiz.approvalForm.id=item.orderApprovals.find(
+				        i => i.status === 1
+				      ).id
+				thiz.approvalForm.comment=''
+				//打开审批弹窗
+				thiz.navigateTo({
+					type: 'openmodal',
+					id: 'approval'
+				});
+			},
+			//审批通过
+			toApprove(){
+				this.approvalForm.status=2
+				console.log('approvalForm',this.approvalForm)
+				// 显示加载中提示
+				uni.showLoading({
+				  title: '审批上传中...',
+				  mask: true // 可选，设置为 true 可以避免用户点击操作
+				});
+			approveOrder(this.approvalForm,this.approvalForm.id).then(res=>{
+				// 获取当前页面的路由路径
+				    const pages = getCurrentPages();
+				    const currentPage = pages[pages.length - 1];
+				    const currentRoute = currentPage.route;
+				 // 重定向到当前页面
+				    uni.redirectTo({
+				      url: '/' + currentRoute
+				    });
+			}
+			)
+				 uni.hideLoading();
+				this.navigateTo({
+					type: 'closemodal',
+					id: 'approval'
+				})
+			},
+			//审批驳回
+			noApprove(){
+				this.approvalForm.status=-1
+					console.log('approvalForm',this.approvalForm)
+				approveOrder(this.approvalForm,this.approvalForm.id).then(res=>console.log(res))
+					this.navigateTo({
+						type: 'closemodal',
+						id: 'approval'
+					})
+				
+			},
+			//
+			 handleUnlock(step) {
+			    // 假设你需要更新 `step` 的状态
+			    step.status = 'unlocked';  // 你可以根据需求更新状态
+				
+			    // 如果你需要更新整个步骤的内容并触发视图更新
+			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
+				console.log('step',this.selectedItem)
+			    console.log('开锁操作完成:', step);
+			  },
 			
+			  handleValidate(step) {
+			    step.status = 'validated';  // 更新状态
+			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
+			
+			    console.log('校验操作完成:', step);
+			  },
+			
+			  handleUploadStatus(step) {
+			    step.status = 'statusUploaded';  // 更新状态
+			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
+			
+			    console.log('上传状态操作完成:', step);
+			  },
+			
+			  select(files) {
+			    // 处理文件选择
+			    console.log('选中的文件:', files);
+			    this.imageValue = files;
+			  },
 			stepsPop(){
 				this.orderStepList.pop()
 				this.orderSteps=	this.orderStepList.map((item,index)=>{
@@ -327,18 +527,15 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 			      // 此处把新的请求值 赋值给options
 			    },
 			// 多选处理
-					selectedItems() {
-						return this.selectedIndexs.map(i => this.tableData[i])
-					},
-					// 多选
-					selectionChange(e) {
-						console.log(e.detail.index)
-						this.selectedIndexs = e.detail.index
-					},
-					//批量删除
-					delTable() {
-						console.log(this.selectedItems())
-					},
+		selectedItems() {
+			return this.selectedIndexs.map(i => this.orderList[i]['id'])
+		},
+		// 多选
+		selectionChange(e) {
+			console.log(e.detail.index)
+			this.selectedIndexs = e.detail.index
+		},
+				
 					// 分页触发
 					change(e) {
 						this.$refs.table.clearSelection()
@@ -346,8 +543,11 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 						this.getData(e.current)
 					},
 			async init() {
-				await getOrderList().then(res=>{
-					console.log("dadsadasdasdasd",uni.getStorageSync('user'))
+			await	getUserList({pageNo:-1}).then(res=>{
+					this.humansData =res.data.data.pageData
+				})
+				await getOrderList({all:1}).then(res=>{
+					console.log("dadsadasdasdasd",res)
 					if(res.data.code==10002){
 						uni.clearStorageSync()
 						this.navigateTo({
@@ -384,10 +584,46 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 					console.log("xxxxxxxxx",this.lockList)
 				});
 			},
+			async onDelete(type,item={}){
+				if(type=='batch'){
+					console.log('selectedItems',this.selectedItems())
+					let ids=this.selectedItems()
+					await deleteOrders({ids:ids}).then(res=>{
+						console.log('xxxxxxxxxx',res)
+						if(res.data.code==10002){
+							uni.clearStorageSync()
+							this.navigateTo({
+							  type: 'page',
+							  url: 'login'
+							});
+						}
+					
+					
+					})
+				}else{
+					console.log(item)
+					await deleteOrders({ids:[item.id]}).then(res=>{
+						console.log('xxxxxxxxxx',res)
+						if(res.data.code==10002){
+							uni.clearStorageSync()
+							this.navigateTo({
+							  type: 'page',
+							  url: 'login'
+							});
+						}
+					
+					
+					})
+					
+				}
+			
+					this.init()
+				//deleteStation
+			},
 			//添加单个步骤
 			clickAddStep(){
 				this.orderStepList.push(this.orderstep)
-			this.orderSteps=	this.orderStepList.map((item,index)=>{
+			this.orderSteps=this.orderStepList.map((item,index)=>{
 					return {
 						orderId:0,
 						sort:index+1,
@@ -527,8 +763,8 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 				}
 			})
 			let orderdata=this.orderData
-			let steps=this.orderApprovals
-			let apprs=this.orderSteps
+			let steps=this.orderSteps
+			let apprs=this.orderApprovals
 			let user=uni.getStorageSync('user')
 				let thiz = this;
 			let finalOrder={
@@ -539,7 +775,8 @@ import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderL
 				orderApprovals:apprs,
 				
 			}
-			await  createOrder(finalOrder).then(()=>{
+			await  createOrder(finalOrder).then((res)=>{
+				console.log(res)
 				console.log('finalOrder',finalOrder)
 			
 			
