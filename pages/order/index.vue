@@ -193,9 +193,18 @@
 			        </template>
 			        
 			        <view class="content">
+					<!-- todo:如果当前是开锁，就显示锁的详细信息 -->
 			          <!-- 根据用户ID判断按钮的显示 -->
+					  <button
+					   :disabled="isReviewStep&&isReview"
+					    v-if="isReviewStep&&isReview" 
+					    type="primary" 
+					    size="mini" 
+					    @click="handleReview(step)">
+					    审核
+					  </button>
 			          <button 
-					   :disabled="isCurrentStep"
+					   :disabled="isCurrentStep(step)"
 			            v-if="step.task ===1" 
 			            type="primary" 
 			            size="mini" 
@@ -204,7 +213,7 @@
 			          </button>
 			          
 			          <button 
-					   :disabled="isCurrentStep"
+					   :disabled="isCurrentStep(step)"
 			            v-if="step.task === 1" 
 			            type="primary" 
 			            size="mini" 
@@ -214,8 +223,8 @@
 			          
 			
 			          <uni-file-picker 
-					   :disabled="isCurrentStep"
-					  v-if="step.task === 2" 
+					   :disabled="isCurrentStep(step)"
+					  v-if="step.task === 3" 
 			          	v-model="imageValue" 
 			          	fileMediatype="image" 
 			          	mode="grid" 
@@ -224,14 +233,14 @@
 			          	@select="select" 
 			
 			          />
-					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 3" >
+					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 4" >
 					    <!-- 审批意见的标签 -->
 					    <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
 					      填写状态量
 					    </text>
 					    <!-- 输入框 -->
 					    <uni-easyinput 
-						:disabled="isCurrentStep"
+						:disabled="isCurrentStep(step)"
 					      type="text" 
 					  	placeholder="填写状态量"
 					      v-model="approvalForm.comment" 
@@ -248,11 +257,11 @@
 			            上传状态
 			          </button> -->
 					  <button
-					   :disabled="isCurrentStep"
-					    v-if="step.task === 3 || step.task === 2" 
+					   :disabled="isCurrentStep(step)"
+					    v-if="step.task === 3 || step.task === 4" 
 					    type="primary" 
 					    size="mini" 
-					    @click="handleUploadStatus(step)">
+					    @click="handleUpload(step)">
 					    上传
 					  </button>
 			        </view>
@@ -315,7 +324,9 @@
 <script>
 import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder} from '../../api/user.js'
 import { OrderStatus } from '../../enum.js';
+import bluetooth from '../../mixins/bluetooth.js'
 	export default {
+		mixins:[bluetooth],
 		data() {
 			return {
 				//用户全局信息
@@ -380,9 +391,8 @@ import { OrderStatus } from '../../enum.js';
 				orderList: [],
 				tasks:[
 					{id:1,name:'开锁'},
-				
-					{id:2,name:'上传图片'},
-					{id:3,name:'状态量'}
+					{id:3,name:'上传图片'},
+					{id:4,name:'状态量'}
 				],
 	
 				returned: '',
@@ -397,6 +407,15 @@ import { OrderStatus } from '../../enum.js';
 				let roles=uni.getStorageSync('user').roles
 				const hasId5 = roles.some(item => item.id === 5||item.id===1)
 				return hasId5
+			},
+			isReview(){
+				let roles=uni.getStorageSync('user').roles
+				const hasId5 = roles.some(item => item.id === 2||item.id===1)
+				return hasId5
+			},
+			isReviewStep(){
+				
+				return this.selectedItem.status==6
 			}
 
 		
@@ -416,7 +435,18 @@ import { OrderStatus } from '../../enum.js';
 			this.init();
 		},
 		methods: {
-			//todo:根据当前ordersetp变量来判断是否是当前或之后的步骤，如果是 就把对应里面的按钮都able
+			
+			//根据当前ordersetp变量来判断是否是当前或之后的步骤，如果是 就把对应里面的按钮都able
+			isCurrentStep(step){
+				
+				 const targetOrderstep= this.selectedItem.orderSteps.find(
+				 i => i.status === 3)
+				let nowid=uni.getStorageSync('user').id
+				 if(step.sort> targetOrderstep.sort||this.selectedItem.dispatcherId!=nowid){
+					 return true
+				 }
+				 return false
+			},
 			//todo:根据selectitem（所选整工单）来确定ordersetp更新时orderid的来源，然后将这个一小setp请求更改step接口
 			//判断当前用户是否需要审批，如果不是，返回true禁止审批按钮
 			isCurrentApproval(item){
@@ -442,6 +472,7 @@ import { OrderStatus } from '../../enum.js';
 			},
 			//审批通过
 			toApprove(){
+				
 				this.approvalForm.status=2
 				console.log('approvalForm',this.approvalForm)
 				// 显示加载中提示
@@ -480,8 +511,10 @@ import { OrderStatus } from '../../enum.js';
 			//
 			 handleUnlock(step) {
 			    // 假设你需要更新 `step` 的状态
-			    step.status = 'unlocked';  // 你可以根据需求更新状态
-				
+			    // step.status = 'unlocked';  // 你可以根据需求更新状态
+				openBluetoothAdapter()//搜索
+				//todo：连接蓝牙设备，发送01指令
+				//todo：发送开锁指令
 			    // 如果你需要更新整个步骤的内容并触发视图更新
 			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
 				console.log('step',this.selectedItem)
@@ -489,13 +522,19 @@ import { OrderStatus } from '../../enum.js';
 			  },
 			
 			  handleValidate(step) {
-			    step.status = 'validated';  // 更新状态
+			    // step.status = 'validated';  // 更新状态
 			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
 			
 			    console.log('校验操作完成:', step);
 			  },
 			
-			  handleUploadStatus(step) {
+			  handleUpload(step) {
+				  //首先判断step的status是不是执行中，不是直接返回
+				  //当上传图片时
+				  //当上传状态量时
+				  if(step.task==3){
+					  
+				  }
 			    step.status = 'statusUploaded';  // 更新状态
 			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
 			
@@ -543,6 +582,7 @@ import { OrderStatus } from '../../enum.js';
 						this.getData(e.current)
 					},
 			async init() {
+				this.userInfo=uni.getStorageSync('user')
 			await	getUserList({pageNo:-1}).then(res=>{
 					this.humansData =res.data.data.pageData
 				})
@@ -621,23 +661,48 @@ import { OrderStatus } from '../../enum.js';
 				//deleteStation
 			},
 			//添加单个步骤
-			clickAddStep(){
-				this.orderStepList.push(this.orderstep)
-			this.orderSteps=this.orderStepList.map((item,index)=>{
-					return {
-						orderId:0,
-						sort:index+1,
-						...item,
-						status:0,
-					}
-				})
-				console.log("this.orderStepList",this.orderSteps)
-				this.navigateTo({
-					type: 'closemodal',
-					id: 'oderStepsModal'
-				});
-			},
+			//todo : 添加步骤时候判断是否添加了同类型审核任务，如果是则不通过
+		clickAddStep() {
+		  // 判断 this.orderstep.task 是否为 3 或 4
+		  if (this.orderstep.task === 3 || this.orderstep.task === 4) {
+		    // 检查 this.orderStepList 是否已经包含 task 为 3 或 4 的项
+		    const taskExists = this.orderStepList.some(item => item.task === this.orderstep.task);
+		    
+		    if (taskExists) {
+		      // 弹窗提示无法创建
+		      uni.showToast({
+		        title: '无法创建，审核任务只能唯一',
+		        icon: 'none',
+		        duration: 2000
+		      });
+		      return; // 退出函数，避免添加重复的任务
+		    }
+		  }
+		
+		  // 如果通过验证，继续执行添加步骤
+		  this.orderStepList.push(this.orderstep);
+		  
+		  this.orderSteps = this.orderStepList.map((item, index) => {
+		    return {
+		      orderId: 0,
+		      sort: index + 1,
+		      ...item,
+		      status: 0,
+		    };
+		  });
+		
+		  console.log("this.orderStepList", this.orderSteps);
+		
+		  // 关闭弹窗
+		  this.navigateTo({
+		    type: 'closemodal',
+		    id: 'oderStepsModal'
+		  });
+		},
+
 			resetAdd(){
+				this.orderData.stationId=null
+				this.orderData.operatorId=null
 				this.stationId=null
 				this.checkApprovalList=[]
 				this.operatorId=null
@@ -753,46 +818,67 @@ import { OrderStatus } from '../../enum.js';
 					id: 'detail'
 				});
 			},
-		async handleSave(){
-			this.orderApprovals=this.checkApprovalList.map((id,index)=>{
-				return {
-					orderId:0,
-					approverId:id,
-					status:0,
-					sort:index+1
-				}
-			})
-			let orderdata=this.orderData
-			let steps=this.orderSteps
-			let apprs=this.orderApprovals
-			let user=uni.getStorageSync('user')
-				let thiz = this;
-			let finalOrder={
-				...orderdata,
-				status:1,
-				userId:user.id,
-				orderSteps:steps,
-				orderApprovals:apprs,
-				
-			}
-			await  createOrder(finalOrder).then((res)=>{
-				console.log(res)
-				console.log('finalOrder',finalOrder)
-			
-			
-			})
-			this.orderData={}
-			this.orderApprovals=[]
-			this.orderStepList=[]
-			this.orderSteps=[]
-			this.orderstep={}
-			this.checkApprovalList=[]
-			thiz.navigateTo({
-				type: 'closemodal',
-				id: 'add'
-			});
-		
-		}
+		//创建order，todo：检验步骤最后两步的不是和状态量，如果是调用接口，如果不是就弹窗
+	async handleSave() {
+	  // 检查 this.orderSteps 最后两个元素的 task 是否分别为 3 和 4
+	  if (this.orderSteps.length >= 2) {
+	    const lastStep = this.orderSteps[this.orderSteps.length - 1];
+	    const secondLastStep = this.orderSteps[this.orderSteps.length - 2];
+	
+	    if (!(lastStep.task === 4 && secondLastStep.task === 3)) {
+	      uni.showToast({
+	        title: '工单创建不符合规范，请确定上传审核顺序',
+	        icon: 'none',
+	        duration: 2000
+	      });
+	      return; // 退出函数，不继续保存
+	    }
+	  }
+	
+	  // 转换 checkApprovalList 为 orderApprovals
+	  this.orderApprovals = this.checkApprovalList.map((id, index) => {
+	    return {
+	      orderId: 0,
+	      approverId: id,
+	      status: 0,
+	      sort: index + 1
+	    };
+	  });
+	
+	  let orderdata = this.orderData;
+	  let steps = this.orderSteps;
+	  let apprs = this.orderApprovals;
+	  let user = uni.getStorageSync('user');
+	  let thiz = this;
+	
+	  let finalOrder = {
+	    ...orderdata,
+	    status: 1,
+	    userId: user.id,
+	    orderSteps: steps,
+	    orderApprovals: apprs,
+	  };
+	
+	  await createOrder(finalOrder).then((res) => {
+	    console.log(res);
+	    console.log('finalOrder', finalOrder);
+	  });
+	
+	  // 清空表单数据
+	  this.orderData = {};
+	  this.orderApprovals = [];
+	  this.orderStepList = [];
+	  this.orderSteps = [];
+	  this.orderstep = {};
+	  this.checkApprovalList = [];
+	
+	  // 关闭模态框
+	  thiz.navigateTo({
+	    type: 'closemodal',
+	    id: 'add'
+	  });
+	}
+
 
 	
 
