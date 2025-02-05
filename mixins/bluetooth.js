@@ -419,8 +419,8 @@ export default {
         // 获取指令
         getLockInstruct() {
             // _type: 1 读取门锁信息 2初始化锁 3开锁
-            const orders = ['010200107d9a0538979e7bc6c2a731c9622a82b2','028b000000000000000000000000000000000000']
-            const order = ['0101000803795A5B33E0E7AEE100000000000000']; //
+            const orders = ['01000D00C1010101E1B2190205171613C5','1F040D00141dfcf97feb77809d4886650023b903']
+            const order = ['1F040D00C1010101E1B2190205170A0CD4']; //
 			console.log('10this.deviceId',this.deviceId)
             if(!this.deviceId) return uni.$u.toast('请先连接蓝牙锁')
             try {
@@ -429,26 +429,28 @@ export default {
                 // 获取指令
                 
                 // 发送指令
-                lock.sendInstruct(order,lock.unLockType);
+                // lock.sendInstruct(order,lock.unLockType);
+				lock.sendUnlockInstruct1(orders,lock.unLockType)
                 uni.hideLoading();
             } catch (e) {
                 uni.hideLoading();
                 uni.$u.toast('开锁失败，请扫码重试！',e)
             }
         },
-        // 向蓝牙发送指令
+        // 向蓝牙发送01指令
         async sendInstruct(obj,_type) {
             // 必须设备的特征值支持 write 才可以成功调用
 			
             let idx = -1;
 			console.log(lock.deviceId)
-			let ins=lock.GenerateCommand(0x01,lock.roll,lock.deviceId)
+			let ins=lock.GenerateCommand(0x01,lock.roll,'C1:12:13:14:15:16')
 			console.log('进入send')
 			
 			lock.roll=lock.roll+1
             while(idx<obj.length-1){
                 idx += 1;
                 await lock.sendDelay(150,lock.getBuffer(obj[idx])).then(buffer=>{
+					console.log('oooooooooooooooooo')
                     uni.writeBLECharacteristicValue({
                         deviceId: lock.deviceId,
                         serviceId: lock.serviceId,
@@ -475,6 +477,195 @@ export default {
                 })
             }
         },
+		// 向蓝牙发送开锁指令
+		async sendUnlockInstruct(obj, _type) {
+		  console.log('进入send');
+		  console.log('设备ID:', lock.deviceId);
+		
+		  // 更新 roll 值
+		  lock.roll = lock.roll + 1;
+		
+		  // 每个包允许的最大字节数
+		  const maxPacketBytes = 20;
+		  // 对应的十六进制字符长度（每个字节2个字符）
+		  const maxPacketHexLength = maxPacketBytes * 2;
+		
+		  // 遍历所有指令（obj 数组中每个元素均为一个十六进制字符串）
+		  for (let idx = 0; idx < obj.length; idx++) {
+		    const command = obj[idx]; // 例如："0100000dc1010101e1b2190204160f1ec7"
+		    // 计算需要分多少包（以 hex 字符数计算）
+		    const totalPackets = Math.ceil(command.length / maxPacketHexLength);
+		    
+		    for (let i = 0; i < totalPackets; i++) {
+		      // 从 command 中截取每个包的十六进制子串
+		      const packetHex = command.slice(i * maxPacketHexLength, (i + 1) * maxPacketHexLength);
+		      console.log(`发送包 ${i + 1} / ${totalPackets}:`, packetHex);
+		      
+		      // 使用 lock.getBuffer 将十六进制字符串转换为 ArrayBuffer 或对应的 buffer
+		      const buffer = lock.getBuffer(packetHex);
+		
+		      // 延时发送每个包（例如延时 150 毫秒）
+		      await lock.sendDelay(150, buffer).then(() => {
+		        uni.writeBLECharacteristicValue({
+		          deviceId: lock.deviceId,
+		          serviceId: lock.serviceId,
+		          characteristicId: lock.characteristicId
+		            ? lock.characteristicId[0]['uuid'].toLowerCase()
+		            : '',
+		          value: buffer,
+		          success(res) {
+		            console.log('指令包发送成功:', packetHex);
+		          },
+		          fail(err) {
+		            if (err.errCode !== 0) {
+		              initTypes(err.errCode);
+		            }
+		          },
+		          complete(err) {
+		            console.log('指令发送结果', err);
+		            if (err.errCode !== 0) {
+		              initTypes(err.errCode);
+		            }
+		          }
+		        });
+		      });
+		    }
+		  }
+		},
+		//分包测试
+		async sendUnlockInstruct1(obj, _type) {
+		  console.log('进入send');
+		  console.log('设备ID:', lock.deviceId);
+		
+		  // 更新 roll 值
+		  lock.roll = lock.roll + 1;
+		
+		  // 每个包允许的最大字节数
+		  const maxPacketBytes = 20;
+		  // 对应的十六进制字符长度（每个字节2个字符）
+		  const maxPacketHexLength = maxPacketBytes * 2;
+		
+		  // 遍历所有指令（obj 数组中每个元素均为一个十六进制字符串）
+		  for (let idx = 0; idx < obj.length; idx++) {
+		    const command = obj[idx]; // 例如："0100000dc1010101e1b2190204160f1ec7"
+		    // 计算需要分多少包（以 hex 字符数计算）
+		   
+		 
+		      
+		      // 使用 lock.getBuffer 将十六进制字符串转换为 ArrayBuffer 或对应的 buffer
+		      const buffer = lock.getBuffer(command);
+		
+		      this.sendMsgToKey(buffer)
+		    
+		  }
+		},
+					/**
+					 * 向设备发送消息(分包发送，单包20字节，递归发送)
+					 */
+				async	sendMsgToKey(buffer) {
+						
+						console.log('deviceID',lock.serviceId)
+						const packageSize = 10 //分包大小
+						if (buffer.byteLength <= 10) { //如果小于20直接发送，不再继续调用
+						await lock.sendDelay(150, buffer).then(()=>{
+							uni.writeBLECharacteristicValue({
+								// 这里的 deviceId 需要在上面的 getBluetoothDevices 或 onBluetoothDeviceFound 接口中获取
+								deviceId: lock.deviceId,
+								// 这里的 serviceId 需要在上面的 getBLEDeviceServices 接口中获取
+								serviceId: lock.serviceId,
+								// 这里的 characteristicId 需要在上面的 getBLEDeviceCharacteristics 接口中获取
+								characteristicId: lock.characteristicId?lock.characteristicId[0]['uuid'].toLowerCase():'', //第二步写入的特征值
+								// 这里的value是ArrayBuffer类型
+								value: buffer,
+								
+								success: function(res) {
+									//此时设备已接收到你写入的数据
+								},
+								fail: function(err) {
+									console.log(err)
+								},
+								complete: function() {}
+							})
+						})
+							
+						} else {//如果大于20发送完成后继续递归调用
+						var newData = buffer.slice(10)
+						var writeBuffer = buffer.slice(0, 10)
+						await lock.sendDelay(1000, buffer).then(()=>{
+							uni.writeBLECharacteristicValue({
+								// 这里的 deviceId 需要在上面的 getBluetoothDevices 或 onBluetoothDeviceFound 接口中获取
+								deviceId: lock.deviceId,
+								// 这里的 serviceId 需要在上面的 getBLEDeviceServices 接口中获取
+								serviceId: lock.serviceId,
+								// 这里的 characteristicId 需要在上面的 getBLEDeviceCharacteristics 接口中获取
+								characteristicId: lock.characteristicId?lock.characteristicId[0]['uuid'].toLowerCase():'', //第二步写入的特征值
+								// 这里的value是ArrayBuffer类型
+							value: writeBuffer,
+							
+								success: async function(res) {
+									//写入成功后继续递归调用发送剩下的数据
+									 await lock.sendDelay(150, buffer);
+									lock.sendMsgToKey(newData)
+								},
+								fail: function(err) {
+									console.log('xxxx',err)
+								},
+								complete: function() {}
+							})
+						})
+							
+						
+						}
+		
+					},
+
+ // 分包写入蓝牙
+  async sendWriteBLECharacteristicValue(
+    deviceId,
+    serviceId,
+    writeCharacteristicId,
+    readCharacteristicId,
+    buffer,
+    success, // 成功回调
+    failure, // 失败回调
+  ) {
+    const offset = 500; // 偏移量
+    let pos = 0; // 位置
+    let bytes = buffer.byteLength; // 总字节
+    let that = this;
+    while (bytes > 0) {
+      let endPos = bytes > offset ? pos + offset : pos + bytes;
+      const tempBuffer = buffer.slice(pos, endPos);
+      pos += offset;
+      bytes -= offset;
+      // 延迟发送
+      await that.sendDelay(150, tempBuffer).then((buffer) => {
+        uni.writeBLECharacteristicValue(
+          deviceId,
+          serviceId,
+          writeCharacteristicId,
+          buffer,
+          (res) => {
+            if (buffer.byteLength < offset) {
+              success(res);
+            }
+          },
+          (err) => {
+            failure(err);
+          }
+        );
+      });
+      if (readCharacteristicId) {
+        console.log(readCharacteristicId, "读文件");
+        uni.readBLECharacteristicValue({
+          deviceId: deviceId,
+          serviceId: serviceId,
+          characteristicId: readCharacteristicId,
+        });
+      }
+    }
+  },
+
         // 延时函数
         sendDelay(delay, buffer) {
             return new Promise((resolve, reject) => {

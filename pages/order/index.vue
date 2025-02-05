@@ -205,16 +205,23 @@
 					  </button>
 			          <button 
 					   :disabled="isCurrentStep(step)"
-			            v-if="step.task ===1" 
+			            v-if="step.task ===1 &&selectedItem.status>=3" 
 			            type="primary" 
 			            size="mini" 
 			            @click="handleUnlock(step)">
 			            开锁
 			          </button>
-			          
+			          <button
+			           :disabled="isCurrentStep(step)"
+			            v-if="step.task ===1 &&selectedItem.status>=3" 
+			            type="primary" 
+			            size="mini" 
+			            @click="Unlock(step)">
+			            快开锁
+			          </button>
 			          <button 
 					   :disabled="isCurrentStep(step)"
-			            v-if="step.task === 1" 
+			            v-if="step.task === 1 &&selectedItem.status>=3" 
 			            type="primary" 
 			            size="mini" 
 			            @click="handleValidate(step)">
@@ -224,16 +231,17 @@
 			
 			          <uni-file-picker 
 					   :disabled="isCurrentStep(step)"
-					  v-if="step.task === 3" 
+					  v-if="step.task === 3 &&selectedItem.status>=3" 
 			          	v-model="imageValue" 
 			          	fileMediatype="image" 
 			          	mode="grid" 
+						limit="1"
 						:auto-upload="false"
 						
 			          	@select="select" 
 			
 			          />
-					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 4" >
+					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 4 &&selectedItem.status>=3" >
 					    <!-- 审批意见的标签 -->
 					    <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
 					      填写状态量
@@ -258,7 +266,7 @@
 			          </button> -->
 					  <button
 					   :disabled="isCurrentStep(step)"
-					    v-if="step.task === 3 || step.task === 4" 
+					    v-if="step.task === 3 || step.task === 4&& selectedItem.status>=3" 
 					    type="primary" 
 					    size="mini" 
 					    @click="handleUpload(step)">
@@ -322,7 +330,7 @@
 </template>
 
 <script>
-import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder} from '../../api/user.js'
+import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder,getLockCmd,upload} from '../../api/user.js'
 import { OrderStatus } from '../../enum.js';
 import bluetooth from '../../mixins/bluetooth.js'
 	export default {
@@ -344,10 +352,12 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  { id: 9, name: '已确认', type: 'success' },
 				  { id: 9, name: '已完成', type: 'success' },
 				],
+				FilePaths:[],
 				orderSteps:[],
 				orderApprovals:[],
 				userInfo: {},
 				currentStep:{},
+				currentLock:{},//当前锁
 				currentModal:'',//当前弹窗
 				currentModalTitle:'',//当前弹窗标题
 				inputDisabled:{
@@ -509,23 +519,132 @@ import bluetooth from '../../mixins/bluetooth.js'
 				
 			},
 			//
-			 handleUnlock(step) {
-			    // 假设你需要更新 `step` 的状态
-			    // step.status = 'unlocked';  // 你可以根据需求更新状态
-				openBluetoothAdapter()//搜索
-				//todo：连接蓝牙设备，发送01指令
-				//todo：发送开锁指令
-			    // 如果你需要更新整个步骤的内容并触发视图更新
-			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
-				console.log('step',this.selectedItem)
-			    console.log('开锁操作完成:', step);
-			  },
+		async Unlock(step){
+			console.log('蓝牙设备roll:', this.roll);
+			let ins=[]
+			await getLockCmd({ id: step.lockId, roll: this.roll, type: 0xE0 })
+			  .then(res => {
+			    console.log(res);
+			    ins.push(res.data.data['cmd']);
+			  });
+			console.log('蓝牙设备roll:', this.roll);
+			this.sendUnlockInstruct(ins);
+		},
+	async handleUnlock(step) {
+		 let ins = [];
+	  // 根据 step.lockId 在 lockList 中查找对应的锁信息
+	  console.log('locki', this.lockList);
+	  let curlock = this.lockList.find(lock => lock.id === step.lockId);
+	  if (!curlock) {
+	    uni.showToast({
+	      title: '未找到对应锁的信息',
+	      icon: 'none',
+	      duration: 2000
+	    });
+	    return;
+	  }
+	  
+	  // 蓝牙模块中，扫描到的设备，其 deviceId（去掉冒号并转为小写）作为 mac 值
+	  let targetMac = curlock.mac.toLowerCase();
+	  console.log('targetMac',curlock)
+	  // 触发蓝牙扫描（内部会调用 openBluetoothAdapter、getBluetoothAdapterState、findBluetooth 等）
+	   this.openBluetoothAdapter();
+	  console.log('devices',this.devices)
+	  // 等待6秒，确保扫描结果已经更新到 this.devices 中
+	  setTimeout(async () => {
+	    // 在扫描到的设备数组（this.devices）中查找与 targetMac 匹配的设备
+	    const device = this.devices.find(dev => {
+	      const devMac = dev.deviceId.replace(/:/g, '').toLowerCase();
+	      return devMac === targetMac;
+	    });
+	    
+	    console.log('rollz', this.roll);
+	    console.log('device',device)
+	    if (device) {
+	      let ins = [];
+	      let ins1=[]
+	      // 调用蓝牙连接方法
+		  console.log('device',device)
+	      this.connectBluetoothDevice(device);
+	      this.device=device
+	      // 增加等待时间（例如 3 秒），让连接有足够时间完成
+	      await new Promise(resolve => setTimeout(resolve, 6000));
+	      
+	      console.log('蓝牙设备已连接, roll:', this.roll);
+	      
+	
+	    const startTime = Date.now();
+	    
+	    // 发送开锁指令（类型 0x01）
+	    await getLockCmd({ id: step.lockId, roll: this.roll, type: 0x01 })
+	      .then(res => {
+	        console.log(res);
+	        ins1.push(res.data.data['cmd']);
+	      });
+	    this.sendUnlockInstruct(ins1);
+	    
+	    // await new Promise(resolve => setTimeout(resolve, 500));
+	    
+	    // 调用接口获取开锁指令（类型 0xE0）
+	    // await getLockCmd({ id: step.lockId, roll: this.roll, type: 0xE0 })
+	    //   .then(res => {
+	    //     console.log(res);
+	    //     ins.push(res.data.data['cmd']);
+	    //   });
+	    // console.log('蓝牙设备roll:', this.roll);
+	    // this.sendUnlockInstruct(ins);
+	    
+	    const endTime = Date.now();
+	    console.log(`执行时间: ${endTime - startTime} ms`);
+		
+	      // 如有需要，可更新步骤状态（例如标记为已开锁）
+	      // step.status = 'unlocked';
+	      // this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
+	      
+	      console.log('开锁操作完成:', step);
+	    } else {
+	      // 未找到设备时给出提示
+	      uni.showToast({
+	        title: '未找到对应的蓝牙设备，请确认设备是否已开启',
+	        icon: 'none',
+	        duration: 2000
+	      });
+	    }
+	  }, 6000);
+	},
+
+
 			
 			  handleValidate(step) {
+				      // 获取蓝牙MTU值    
+				      // uni.getBLEMTU({
+				      //   deviceId: 'C1:01:01:01:E1:B2',
+				      //   writeType: "write",
+				      //   success(res) {
+				      //     console.log(res.mtu);
+				      //   },
+				      // });
+				   
+				      // 修改蓝牙MTU值
+				      uni.setBLEMTU({
+				        deviceId: deviceId,
+				        mtu: 512,
+				        success: (res) => {
+				          console.log(res);
+				        },
+				        fail: (res) => {
+				          console.log(res);
+				        },
+				      });
+				   
+				      // 监听蓝牙低功耗的最大传输单元变化事件（仅安卓触发）
+				        uni.onBLEMTUChange(function (res) {
+				        console.log(res.mtu);
+				      });
 			    // step.status = 'validated';  // 更新状态
-			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
+			//     this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
 			
-			    console.log('校验操作完成:', step);
+			//     console.log('校验操作完成:', step);
 			  },
 			
 			  handleUpload(step) {
@@ -541,11 +660,62 @@ import bluetooth from '../../mixins/bluetooth.js'
 			    console.log('上传状态操作完成:', step);
 			  },
 			
-			  select(files) {
-			    // 处理文件选择
-			    console.log('选中的文件:', files);
-			    this.imageValue = files;
-			  },
+		     select(e) {
+		                console.log('选择文件：', e)
+		                // 解决file对象取值问题
+		                // h5上传-需要文件file对象
+						// const tempFilePaths = e.tempFiles[0].file;
+						// 微信小程序上传-需要微信临时提供临时地址
+						const tempFilePaths = e.tempFilePaths;
+						let token=uni.getStorageSync('token')
+						console.log(token)
+						
+		                uni.uploadFile({
+		                    url: 'http://182.92.76.31:8800/f/'+e.tempFiles[0].name,
+		                    // 要上传文件对象-h5和微信小程序上传参数不一样只能存在一个
+		                    // H5上传
+							// file: tempFilePaths,
+							// 微信小程序上传
+				headers: {
+					'Authorization': `Bearer ${uni.getStorageSync('token')}`,
+					 // 'Authorization':'Bearer '+ token,
+				    // 'Content-Type': 'multipart/form-data', // 确保 Content-Type 为 multipart/form-data
+				  },
+								
+							filePath: tempFilePaths[0],
+							// formData:{
+							// 	token:token
+							// },
+		                    //文件对应的 key , 开发者在服务器端通过这个 key 可以获取到文件二进制内容
+		                    name: 'file',
+		                    // 请求头设置
+		                    // 我们是需要token和用户id登录时存从uni-app数据存储中取
+		                    // header: {
+		                    //     "token": uni.getStorageSync('token'),
+		                    //     "tenant-id": uni.getStorageSync('tenant-id')
+		                    // },
+		                    // 成功函数
+						
+		                    success: (res) => {
+		                        // uni.uploadFile默认在外面包了一层data
+		                        console.log('上传成功', res.data);
+		                // uni.uploadFile返回来的结果默认是JSON格式字符串，需要用JSON.parse转换成js对象
+		                        console.log('上传数据转换',JSON.parse(res.data));
+		                        // 取到文档服务器的值
+		                        let uploaddata = JSON.parse(res.data)
+		                        let x = {}
+		                        // 下面3个值是uni-app规定的一个不能少
+		                        x.url = uploaddata.url
+		                        x.extname = ''
+		                        x.name = uploaddata.filename
+		                        this.fileLists.push(x)
+		                    },
+		                    // 失败提示用户重新上传
+		                    fail: error => {
+		                        console.log('失败', error);
+		                    }
+		                })
+		            },
 			stepsPop(){
 				this.orderStepList.pop()
 				this.orderSteps=	this.orderStepList.map((item,index)=>{

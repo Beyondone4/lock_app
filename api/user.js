@@ -15,6 +15,21 @@ export const refreshToken= (params)=>{
 		        params: params
 	})
 }
+export const upload = (filename, file) => {
+  return uni.uploadFile({
+    url: '/f/' + filename,  // 上传的 URL
+    // file: file,         // 选择的文件路径
+    name: 'file',           // 上传的字段名
+	filePath: file, // 文件资源的路径
+    success(res) {
+      console.log('上传成功:', res);
+    },
+    fail(err) {
+      console.error('上传失败:', err);
+    }
+  });
+};
+
 // 用户登录
 export const login =  (params={}) => {
   return 	request({
