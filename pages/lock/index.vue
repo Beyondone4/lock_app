@@ -546,6 +546,7 @@ import store from '@/store/index.js';
 					      this.currentModalTitle = '修改'
 					      // 用要修改的那条数据来覆盖
 					      this.selectedItem = { ...param }
+						  console.log('testSELECT',this.selectedItem)
 	
 				}
 

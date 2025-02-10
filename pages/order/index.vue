@@ -116,8 +116,8 @@
 						<i class="diy-icon-close"></i>
 					</view>
 				</view>
-		<uni-forms :modelValue="this.addItem" style="padding: 20rpx;">
-			<uni-forms-item  label="操作任务" name="name">
+		<uni-forms :modelValue="this.addItem" style="padding: 18rpx;">
+			<uni-forms-item required  label="任务" name="name">
 					<zqs-select
 					  :multiple="false"
 					  :list="this.tasks"
@@ -154,7 +154,7 @@
 						  value-key="id"
 						  title="选择审核员"
 						  clearable
-						  v-model="orderstep.approvalId"
+						  v-model="orderstep.reviewerId"
 						></zqs-select>
 				</uni-forms-item>
 		</uni-forms>
@@ -186,7 +186,7 @@
 			          <uni-list>
 			            <uni-list-item 
 			              :title="`步骤 ${step.sort} - 任务 ${tasks.find(item=>item.id==step.task)['name']} ${step.lockId==null?'':lockList.find(item=>item.id==step.lockId)['name']}`" 
-			              :show-extra-icon="true" 
+			              :show-extra-icon="step.status>3" 
 			              :extra-icon="extraIcon">
 			            </uni-list-item>
 			          </uni-list>
@@ -195,43 +195,36 @@
 			        <view class="content">
 					<!-- todo:如果当前是开锁，就显示锁的详细信息 -->
 			          <!-- 根据用户ID判断按钮的显示 -->
-					  <button
-					   :disabled="isReviewStep&&isReview"
-					    v-if="isReviewStep&&isReview" 
-					    type="primary" 
-					    size="mini" 
-					    @click="handleReview(step)">
-					    审核
-					  </button>
+			
 			          <button 
-					   :disabled="isCurrentStep(step)"
-			            v-if="step.task ===1 &&selectedItem.status>=3" 
+						 :disabled="step.sort> curStep"
+			            v-if="step.task ===1 && selectedItem.status>=3&&selectedItem.status!=10" 
 			            type="primary" 
 			            size="mini" 
 			            @click="handleUnlock(step)">
 			            开锁
 			          </button>
-			          <button
-			           :disabled="isCurrentStep(step)"
+<!-- 			         <button
+			       :disabled="step.sort> curStep"
 			            v-if="step.task ===1 &&selectedItem.status>=3" 
 			            type="primary" 
 			            size="mini" 
 			            @click="Unlock(step)">
-			            快开锁
-			          </button>
-			          <button 
-					   :disabled="isCurrentStep(step)"
+			            开锁
+			          </button> -->
+			<!--          <button 
+					  :disabled="step.sort> curStep"
 			            v-if="step.task === 1 &&selectedItem.status>=3" 
 			            type="primary" 
 			            size="mini" 
 			            @click="handleValidate(step)">
 			            校验
-			          </button>
-			          
+			          </button> -->
+			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://182.92.76.31:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
 			
 			          <uni-file-picker 
-					   :disabled="isCurrentStep(step)"
-					  v-if="step.task === 3 &&selectedItem.status>=3" 
+					 :disabled="step.sort>curStep"
+					  v-if="step.task === 3 && (step.status==3 || step.status==4)" 
 			          	v-model="imageValue" 
 			          	fileMediatype="image" 
 			          	mode="grid" 
@@ -241,17 +234,19 @@
 			          	@select="select" 
 			
 			          />
-					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 4 &&selectedItem.status>=3" >
+					  
+					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 4 " >
 					    <!-- 审批意见的标签 -->
 					    <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
 					      填写状态量
 					    </text>
 					    <!-- 输入框 -->
+						
 					    <uni-easyinput 
-						:disabled="isCurrentStep(step)"
+					 :disabled="step.sort> curStep"
 					      type="text" 
 					  	placeholder="填写状态量"
-					      v-model="approvalForm.comment" 
+					      v-model="step.comment" 
 					      style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-size: 16px; width: 100%;" 
 					    />
 					  </view>
@@ -265,12 +260,20 @@
 			            上传状态
 			          </button> -->
 					  <button
-					   :disabled="isCurrentStep(step)"
-					    v-if="step.task === 3 || step.task === 4&& selectedItem.status>=3" 
+					   :disabled="step.sort> curStep"
+					    v-if="(step.task === 3 || step.task === 4)&& selectedItem.status>=3&&selectedItem.status!=10" 
 					    type="primary" 
 					    size="mini" 
 					    @click="handleUpload(step)">
 					    上传
+					  </button>
+					  <button
+					   :disabled="!(step.reviewerId===userid&&ableReview)"
+					    v-if="isReview&&step.task>=3 &&selectedItem.status!=10" 
+					    type="primary" 
+					    size="mini" 
+					    @click="handleReview(step)">
+					    审核
 					  </button>
 			        </view>
 			        
@@ -281,8 +284,7 @@
 		
 					
 				<view class="flex justify-end">
-					<button @tap="navigateTo" data-type="clickAddStep"  class="diygw-btn green flex1 margin-xs">确认</button>
-					
+					<button :disabled="selectedItem.status===8?false:true" @tap="clickConfirm"  class="diygw-btn green flex1 margin-xs">提交工单</button>
 					<button data-type="closemodal" @tap="navigateTo" data-id="detail" class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
@@ -325,18 +327,71 @@
 				</view>
 			</view>
 		</view>
+		<view class="diygw-modal basic" :class="review" style="z-index: 1000000">
+			<view class="diygw-dialog diygw-dialog-consumed basis-lg">
+				<view class="justify-end diygw-bar">
+					<view class="content"> 审核 </view>
+					<view class="action" data-type="closemodal" data-id="review" @tap="navigateTo">
+						<i class="diy-icon-close"></i>
+					</view>
+				</view>	
+					<view class="justify-end diygw-bar">
+						<view class="content"> 
+						<text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
+						 请确认工单执行操作无误后进行审核！
+						</text>
+						 </view>
+					
+					</view>	
+		
+				
+			
+				<view class="flex justify-end">
+					<button @tap="navigateTo" data-type="toReview"  class="diygw-btn green flex1 margin-xs">审核通过</button>
+					
+					<button data-type="noReview" @tap="navigateTo" data-id="detail" class="diygw-btn red flex1 margin-xs">审核驳回</button>
+				</view>
+			</view>
+		</view>
+		<view class="diygw-modal basic" :class="submit" style="z-index: 1000000">
+			<view class="diygw-dialog diygw-dialog-consumed basis-lg">
+				<view class="justify-end diygw-bar">
+					<view class="content"> 确认工单 </view>
+					<view class="action" data-type="closemodal" data-id="submit" @tap="navigateTo">
+						<i class="diy-icon-close"></i>
+					</view>
+				</view>	
+					<view class="justify-end diygw-bar">
+						<view class="content"> 
+						<text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
+						 请确认工单所有步骤已完成并关闭所有锁具后进行提交！
+						</text>
+						 </view>
+					
+					</view>	
+		
+				
+			
+				<view class="flex justify-end">
+					<button @tap="navigateTo" data-type="toSubmit"  class="diygw-btn green flex1 margin-xs">确认提交</button>
+					
+					
+				</view>
+			</view>
+		</view>
 		<view class="clearfix"></view>
 	</view>
 </template>
 
 <script>
-import {getUserInfo,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder,getLockCmd,upload} from '../../api/user.js'
-import { OrderStatus } from '../../enum.js';
+import {uploadimg,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder,getLockCmd, stepOrder, getImg, updateLock, updateOrder} from '../../api/user.js'
+
 import bluetooth from '../../mixins/bluetooth.js'
 	export default {
 		mixins:[bluetooth],
 		data() {
 			return {
+				
 				//用户全局信息
 				OrderStatus : [
 					{ id: -1, name: '已驳回', type: '' },
@@ -350,12 +405,19 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  { id: 7, name: '审核通过', type: 'error' },
 				  { id: 8, name: '确认中', type: 'success' },
 				  { id: 9, name: '已确认', type: 'success' },
-				  { id: 9, name: '已完成', type: 'success' },
+				  { id: 10, name: '已完成', type: 'success' },
 				],
+				extraIcon: {
+						color: '#4cd964',
+						size: '22',
+						type: 'checkbox-filled'
+					},
+				userid:null,
 				FilePaths:[],
 				orderSteps:[],
 				orderApprovals:[],
 				userInfo: {},
+				currentImg:'',//当前步骤的img
 				currentStep:{},
 				currentLock:{},//当前锁
 				currentModal:'',//当前弹窗
@@ -383,6 +445,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 					status:null,
 					comment:null
 				},
+				imageData:null,
 				selectedIds:[],
 				orderStepList:[],//工单步骤集合，需转换
 				orderstep:{},//表单中表单步骤数据
@@ -404,12 +467,14 @@ import bluetooth from '../../mixins/bluetooth.js'
 					{id:3,name:'上传图片'},
 					{id:4,name:'状态量'}
 				],
-	
+				ableReview:false,
+				review:'',
 				returned: '',
 				add: '',
 				detail:'',
 				oderStepsModal:'',
 				approval:'',
+				submit:''
 			};
 		},
 		computed: {
@@ -420,14 +485,16 @@ import bluetooth from '../../mixins/bluetooth.js'
 			},
 			isReview(){
 				let roles=uni.getStorageSync('user').roles
+				
 				const hasId5 = roles.some(item => item.id === 2||item.id===1)
+				console.log('roles',hasId5)
 				return hasId5
 			},
-			isReviewStep(){
-				
-				return this.selectedItem.status==6
+			curStep(){
+				const nowstep = this.selectedItem.orderSteps.find(item => item.status===3)||this.selectedItem.orderSteps.find(item => item.status===6)||this.selectedItem.orderSteps.find(item => item.status===7)
+				console.log('this.selectedItem',this.selectedItem)
+				return nowstep.sort
 			}
-
 		
 		  },
 		onShow() {
@@ -445,7 +512,78 @@ import bluetooth from '../../mixins/bluetooth.js'
 			this.init();
 		},
 		methods: {
-			
+			async toSubmit(){
+				await updateOrder({id:this.selectedItem.id,status:10},this.selectedItem.id).then(res=>{
+					console.log(res)
+					// 获取当前页面的路由路径
+					    const pages = getCurrentPages();
+					    const currentPage = pages[pages.length - 1];
+					    const currentRoute = currentPage.route;
+					 // 重定向到当前页面
+					    uni.redirectTo({
+					      url: '/' + currentRoute
+					    });
+				})
+			},
+			async toReview(){
+				this.currentStep.status=7
+				await stepOrder(this.currentStep,this.currentStep.id).then(res=>{
+						  // 获取当前工单的所有步骤
+						    const steps = this.selectedItem.orderSteps;
+						    
+						    if (steps && steps.length > 0) {
+						      // 通过 findIndex 查找当前步骤在步骤数组中的位置
+						      const currentIndex = steps.findIndex(item => item.id === this.currentStep.id);
+						      
+						      // 如果当前步骤存在并且是最后一个步骤，则将工单状态改为 8
+						      if (currentIndex !== -1 && currentIndex === steps.length - 1) {
+						        this.selectedItem.status = 8;
+						      }else{
+								  this.selectedItem.status = 7;
+							  }
+						    }
+						this.navigateTo({
+							type: 'closemodal',
+							id: 'review'
+						});			
+				})
+			},
+			async noReview(){
+				this.currentStep.status=4
+				this.ableReview=false
+				await stepOrder(this.currentStep,this.currentStep.id).then(res=>{
+										  console.log(res)
+										  this.navigateTo({
+										  	type: 'closemodal',
+										  	id: 'review'
+										  });	
+									
+				})
+			},
+			clickConfirm(){
+				this.navigateTo({
+					type: 'openmodal',
+					id: 'submit'
+				});
+			},
+			handleReview(step){
+				console.log(step)
+				this.currentStep=step
+				this.navigateTo({
+					type: 'openmodal',
+					id: 'review'
+				});
+			},
+			imageValue(){
+				getImg('20250207121400_1738901637543.jpg').then(res=>{
+					// let datas = res.data;
+					// this.imageData =  '/f/20250207121400_1738901637543.jpg'
+					this.imageData='http://182.92.76.31:8800/uploads/20250207121400_1738901637543.jpg'
+				  // const base64 = uni.arrayBufferToBase64(res.data);
+				  //   this.imageData = `data:image/jpeg;base64,${base64}`;
+					console.log('imgres', res)
+				})
+			},
 			//根据当前ordersetp变量来判断是否是当前或之后的步骤，如果是 就把对应里面的按钮都able
 			isCurrentStep(step){
 				
@@ -520,21 +658,36 @@ import bluetooth from '../../mixins/bluetooth.js'
 			},
 			//
 		async Unlock(step){
-			console.log('蓝牙设备roll:', this.roll);
-			let ins=[]
+			
+			
+			let thiz=this
+			// await getLockCmd({ id: step.lockId, roll: this.roll, type: 0x10 })
+			//   .then(res => {
+			// 	console.log('蓝牙设备roll:', this.roll);
+			//     console.log(res);
+			// 	let ins=[]
+			//     ins.push(res.data.data['cmd']);
+			// 	thiz.sendUnlockInstruct1(ins);
+			//   });
+			thiz.currentStep=step
 			await getLockCmd({ id: step.lockId, roll: this.roll, type: 0xE0 })
-			  .then(res => {
-			    console.log(res);
-			    ins.push(res.data.data['cmd']);
+			  .then(async res => {
+			// console.log('蓝牙设备roll:', this.roll);
+			// console.log(res);
+			let ins=[]
+			
+			ins.push(res.data.data['cmd']);
+			thiz.sendUnlockInstruct1(ins);
+	
 			  });
-			console.log('蓝牙设备roll:', this.roll);
-			this.sendUnlockInstruct(ins);
+			
 		},
 	async handleUnlock(step) {
 		 let ins = [];
 	  // 根据 step.lockId 在 lockList 中查找对应的锁信息
-	  console.log('locki', this.lockList);
+	  // console.log('locki', this.lockList);
 	  let curlock = this.lockList.find(lock => lock.id === step.lockId);
+	  this.currentLock=curlock
 	  if (!curlock) {
 	    uni.showToast({
 	      title: '未找到对应锁的信息',
@@ -546,10 +699,10 @@ import bluetooth from '../../mixins/bluetooth.js'
 	  
 	  // 蓝牙模块中，扫描到的设备，其 deviceId（去掉冒号并转为小写）作为 mac 值
 	  let targetMac = curlock.mac.toLowerCase();
-	  console.log('targetMac',curlock)
+	  // console.log('targetMac',curlock)
 	  // 触发蓝牙扫描（内部会调用 openBluetoothAdapter、getBluetoothAdapterState、findBluetooth 等）
 	   this.openBluetoothAdapter();
-	  console.log('devices',this.devices)
+	  // console.log('devices',this.devices)
 	  // 等待6秒，确保扫描结果已经更新到 this.devices 中
 	  setTimeout(async () => {
 	    // 在扫描到的设备数组（this.devices）中查找与 targetMac 匹配的设备
@@ -558,31 +711,29 @@ import bluetooth from '../../mixins/bluetooth.js'
 	      return devMac === targetMac;
 	    });
 	    
-	    console.log('rollz', this.roll);
-	    console.log('device',device)
+	    // console.log('rollz', this.roll);
+	    // console.log('device',device)
 	    if (device) {
-	      let ins = [];
-	      let ins1=[]
+	     
 	      // 调用蓝牙连接方法
-		  console.log('device',device)
+		  // console.log('device',device)
 	      this.connectBluetoothDevice(device);
 	      this.device=device
 	      // 增加等待时间（例如 3 秒），让连接有足够时间完成
 	      await new Promise(resolve => setTimeout(resolve, 6000));
 	      
-	      console.log('蓝牙设备已连接, roll:', this.roll);
+	      // console.log('蓝牙设备已连接, roll:', this.roll);
 	      
-	
-	    const startTime = Date.now();
-	    
 	    // 发送开锁指令（类型 0x01）
 	    await getLockCmd({ id: step.lockId, roll: this.roll, type: 0x01 })
 	      .then(res => {
-	        console.log(res);
-	        ins1.push(res.data.data['cmd']);
+			let ins01=[]
+	        // console.log(res);
+	        ins01.push(res.data.data['cmd']);
+			// ins1.push('0100000dc1020101e1b219020800241ac6')
+			this.sendUnlockInstruct1(ins01);
 	      });
-	    this.sendUnlockInstruct(ins1);
-	    
+		await  this.Unlock(step)
 	    // await new Promise(resolve => setTimeout(resolve, 500));
 	    
 	    // 调用接口获取开锁指令（类型 0xE0）
@@ -594,14 +745,30 @@ import bluetooth from '../../mixins/bluetooth.js'
 	    // console.log('蓝牙设备roll:', this.roll);
 	    // this.sendUnlockInstruct(ins);
 	    
-	    const endTime = Date.now();
-	    console.log(`执行时间: ${endTime - startTime} ms`);
-		
+
+		//todo：发送01校验开锁，如果状态为开patch更改锁状态，然后patch orderstep状态
 	      // 如有需要，可更新步骤状态（例如标记为已开锁）
 	      // step.status = 'unlocked';
 	      // this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
-	      
-	      console.log('开锁操作完成:', step);
+	  //    await this.Unlock(step)
+		 //  getLockCmd({ id: step.lockId, roll: this.roll, type: 0x01 })
+		 //   .then(async res => {
+		 // 	let ins01=[]
+		 //     console.log(res);
+		 //     ins01.push(res.data.data['cmd']);
+		 // 	// ins1.push('0100000dc1020101e1b219020800241ac6')
+		 //  await	this.sendUnlockInstruct1(ins01);
+			// console.log('someDataFromB',this.someDataFromB)
+			// if(this.someDataFromB.lockStatus=='01'){
+			// 	updateLock({lockStatus:this.someDataFromB.lockStatus},step.lockId).then(res=>{
+			// 		if(res.data.code==0){
+			// 			step.status = 5;
+			// 			this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
+			// 		}
+			// 	})
+			// }
+		 //   });
+	      // console.log('开锁操作完成:', step);
 	    } else {
 	      // 未找到设备时给出提示
 	      uni.showToast({
@@ -615,48 +782,75 @@ import bluetooth from '../../mixins/bluetooth.js'
 
 
 			
-			  handleValidate(step) {
-				      // 获取蓝牙MTU值    
-				      // uni.getBLEMTU({
-				      //   deviceId: 'C1:01:01:01:E1:B2',
-				      //   writeType: "write",
-				      //   success(res) {
-				      //     console.log(res.mtu);
-				      //   },
-				      // });
+			async  handleValidate(step) {
+				    //todo：获取step中lock的status，看是否是关锁，如果是最后一个开锁步骤的锁关，更新工单状态为完成
+					  let thiz=this
+				   await getLockCmd({ id: step.lockId, roll: this.roll, type: 0x01 })
+				     .then(res => {
+				   // console.log('蓝牙设备roll:', this.roll);
+				   // console.log(res);
+				   let ins=[]
+				   ins.push(res.data.data['cmd']);
+				   thiz.sendUnlockInstruct1(ins);
+				     });
+	
 				   
-				      // 修改蓝牙MTU值
-				      uni.setBLEMTU({
-				        deviceId: deviceId,
-				        mtu: 512,
-				        success: (res) => {
-				          console.log(res);
-				        },
-				        fail: (res) => {
-				          console.log(res);
-				        },
-				      });
-				   
-				      // 监听蓝牙低功耗的最大传输单元变化事件（仅安卓触发）
-				        uni.onBLEMTUChange(function (res) {
-				        console.log(res.mtu);
-				      });
+			
 			    // step.status = 'validated';  // 更新状态
 			//     this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
 			
 			//     console.log('校验操作完成:', step);
 			  },
+			  upload  (filename, file) {
+				  let thiz=this
+			    return uni.uploadFile({
+			      url: 'http://182.92.76.31:8800/f/' + filename,  // 上传的 URL
+			      // file: file,         // 选择的文件路径
+			  
+			  	header:{
+			  		Authorization: "Bearer " + uni.getStorageSync('token'),
+			  	},
+			  	name: 'file',           // 上传的字段名
+			  	filePath: file, // 文件资源的路径
+			      success(res) {
+			  		thiz.currentImg= JSON.parse(res.data).data
+					console.log('this.img',thiz.currentImg)
+			        console.log('上传成功:', JSON.parse(res.data));
+			      },
+			      fail(err) {
+			        console.error('上传失败:', err);
+			      }
+			    });
+			  },
 			
-			  handleUpload(step) {
+			async  handleUpload(step) {
 				  //首先判断step的status是不是执行中，不是直接返回
-				  //当上传图片时
+				  //当上传图片时，更改setp patch 状态改为审核中
 				  //当上传状态量时
-				  if(step.task==3){
-					  
+				  let stepform={
+					  id:step.id,
+					  orderId:step.orderId,
+					  task:step.task,
+					  status:5,
+					 
 				  }
-			    step.status = 'statusUploaded';  // 更新状态
-			    this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
-			
+				  if(step.task==3){
+					  stepform.imageUrl=this.currentImg
+					  await stepOrder(stepform,step.id).then(res=>{
+						  console.log(res)
+						this.ableReview=true
+						 
+					  })
+				  }
+				  if(step.task==4){
+					  stepform.comment=step.comment
+					  console.log('step.comment',stepform)
+					 await stepOrder(stepform,step.id).then(res=>{
+					 						  console.log('sss',res)
+					 				this.ableReview=true	 	
+					
+					 })
+				  }
 			    console.log('上传状态操作完成:', step);
 			  },
 			
@@ -670,51 +864,9 @@ import bluetooth from '../../mixins/bluetooth.js'
 						let token=uni.getStorageSync('token')
 						console.log(token)
 						
-		                uni.uploadFile({
-		                    url: 'http://182.92.76.31:8800/f/'+e.tempFiles[0].name,
-		                    // 要上传文件对象-h5和微信小程序上传参数不一样只能存在一个
-		                    // H5上传
-							// file: tempFilePaths,
-							// 微信小程序上传
-				headers: {
-					'Authorization': `Bearer ${uni.getStorageSync('token')}`,
-					 // 'Authorization':'Bearer '+ token,
-				    // 'Content-Type': 'multipart/form-data', // 确保 Content-Type 为 multipart/form-data
-				  },
-								
-							filePath: tempFilePaths[0],
-							// formData:{
-							// 	token:token
-							// },
-		                    //文件对应的 key , 开发者在服务器端通过这个 key 可以获取到文件二进制内容
-		                    name: 'file',
-		                    // 请求头设置
-		                    // 我们是需要token和用户id登录时存从uni-app数据存储中取
-		                    // header: {
-		                    //     "token": uni.getStorageSync('token'),
-		                    //     "tenant-id": uni.getStorageSync('tenant-id')
-		                    // },
-		                    // 成功函数
-						
-		                    success: (res) => {
-		                        // uni.uploadFile默认在外面包了一层data
-		                        console.log('上传成功', res.data);
-		                // uni.uploadFile返回来的结果默认是JSON格式字符串，需要用JSON.parse转换成js对象
-		                        console.log('上传数据转换',JSON.parse(res.data));
-		                        // 取到文档服务器的值
-		                        let uploaddata = JSON.parse(res.data)
-		                        let x = {}
-		                        // 下面3个值是uni-app规定的一个不能少
-		                        x.url = uploaddata.url
-		                        x.extname = ''
-		                        x.name = uploaddata.filename
-		                        this.fileLists.push(x)
-		                    },
-		                    // 失败提示用户重新上传
-		                    fail: error => {
-		                        console.log('失败', error);
-		                    }
-		                })
+					const result=this.upload(e.tempFiles[0].name,tempFilePaths[0])
+					console.log(result)
+	
 		            },
 			stepsPop(){
 				this.orderStepList.pop()
@@ -752,7 +904,10 @@ import bluetooth from '../../mixins/bluetooth.js'
 						this.getData(e.current)
 					},
 			async init() {
+
 				this.userInfo=uni.getStorageSync('user')
+				this.userid=this.userInfo.id
+				console.log('userid',this.userInfo.id)
 			await	getUserList({pageNo:-1}).then(res=>{
 					this.humansData =res.data.data.pageData
 				})
@@ -834,10 +989,10 @@ import bluetooth from '../../mixins/bluetooth.js'
 			//todo : 添加步骤时候判断是否添加了同类型审核任务，如果是则不通过
 		clickAddStep() {
 		  // 判断 this.orderstep.task 是否为 3 或 4
-		  if (this.orderstep.task === 3 || this.orderstep.task === 4) {
+		  if ((this.orderstep.task === 3 || this.orderstep.task === 4)&&this.orderstep.reviewerId) {
 		    // 检查 this.orderStepList 是否已经包含 task 为 3 或 4 的项
 		    const taskExists = this.orderStepList.some(item => item.task === this.orderstep.task);
-		    
+			
 		    if (taskExists) {
 		      // 弹窗提示无法创建
 		      uni.showToast({
@@ -847,6 +1002,15 @@ import bluetooth from '../../mixins/bluetooth.js'
 		      });
 		      return; // 退出函数，避免添加重复的任务
 		    }
+		  }else if(this.orderstep.task === 1&&this.orderstep.lockId){
+			  console.log('success')
+		  }else{
+			  uni.showToast({
+			    title: '无法创建，请选择必要属性',
+			    icon: 'none',
+			    duration: 2000
+			  });
+			   return; 
 		  }
 		
 		  // 如果通过验证，继续执行添加步骤
@@ -962,6 +1126,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 			// 获取用户信息（新） 自定义方法
 				
 			async clickAddFunction(){
+				this.orderStepList=[]
 				this.navigateTo({
 					type: 'openmodal',
 					id: 'add'
@@ -973,9 +1138,10 @@ import bluetooth from '../../mixins/bluetooth.js'
 					this.currentModal='detail'
 					this.currentModalTitle='详情'
 				}
-
+				
 				let thiz = this;
 				thiz.selectedItem=param
+				console.log('param',thiz.selectedItem)
 				let index = param && (param.index || param.index == 0) ? param.index : thiz.index || '';
 				//初始化
 				this.globalData.storeflowid = 0;
@@ -991,10 +1157,10 @@ import bluetooth from '../../mixins/bluetooth.js'
 		//创建order，todo：检验步骤最后两步的不是和状态量，如果是调用接口，如果不是就弹窗
 	async handleSave() {
 	  // 检查 this.orderSteps 最后两个元素的 task 是否分别为 3 和 4
-	  if (this.orderSteps.length >= 2) {
+	  if (this.orderSteps.length > 2) {
 	    const lastStep = this.orderSteps[this.orderSteps.length - 1];
 	    const secondLastStep = this.orderSteps[this.orderSteps.length - 2];
-	
+		
 	    if (!(lastStep.task === 4 && secondLastStep.task === 3)) {
 	      uni.showToast({
 	        title: '工单创建不符合规范，请确定上传审核顺序',
@@ -1003,6 +1169,13 @@ import bluetooth from '../../mixins/bluetooth.js'
 	      });
 	      return; // 退出函数，不继续保存
 	    }
+	  }else{
+		  uni.showToast({
+		    title: '工单至少创建三个步骤，请确定步骤合理',
+		    icon: 'none',
+		    duration: 2000
+		  });
+		  return ;
 	  }
 	
 	  // 转换 checkApprovalList 为 orderApprovals
@@ -1014,13 +1187,20 @@ import bluetooth from '../../mixins/bluetooth.js'
 	      sort: index + 1
 	    };
 	  });
-	
+	  
 	  let orderdata = this.orderData;
 	  let steps = this.orderSteps;
 	  let apprs = this.orderApprovals;
 	  let user = uni.getStorageSync('user');
 	  let thiz = this;
-	
+	if(!apprs&&orderdata.operatorId&&orderdata.stationId){
+		uni.showToast({
+		  title: '请确定表单填写完整！',
+		  icon: 'none',
+		  duration: 2000
+		});
+		return ;
+	}
 	  let finalOrder = {
 	    ...orderdata,
 	    status: 1,
@@ -1047,6 +1227,14 @@ import bluetooth from '../../mixins/bluetooth.js'
 	    type: 'closemodal',
 	    id: 'add'
 	  });
+	  // 获取当前页面的路由路径
+	      const pages = getCurrentPages();
+	      const currentPage = pages[pages.length - 1];
+	      const currentRoute = currentPage.route;
+	   // 重定向到当前页面
+	      uni.redirectTo({
+	        url: '/' + currentRoute
+	      });
 	}
 
 

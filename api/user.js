@@ -17,11 +17,16 @@ export const refreshToken= (params)=>{
 }
 export const upload = (filename, file) => {
   return uni.uploadFile({
-    url: '/f/' + filename,  // 上传的 URL
+    url: 'http://182.92.76.31:8800/f/' + filename,  // 上传的 URL
     // file: file,         // 选择的文件路径
-    name: 'file',           // 上传的字段名
+
+	header:{
+		Authorization: "Bearer " + uni.getStorageSync('token'),
+	},
+	name: 'file',           // 上传的字段名
 	filePath: file, // 文件资源的路径
     success(res) {
+		this.currentImg=res.data.data
       console.log('上传成功:', res);
     },
     fail(err) {
@@ -29,7 +34,20 @@ export const upload = (filename, file) => {
     }
   });
 };
+export const uploadimg = (name, file) => {
+  // 创建FormData对象并添加文件
+  const formData = new FormData();
+  formData.append('file', file); // 'file'是服务器接收文件的字段名，根据需要修改
 
+  return request({
+    method: 'POST',
+    url: `/f/${name}`,
+    data: formData,          // 正确传递FormData
+    headers: {
+      'Content-Type': 'multipart/form-data' // 通常可省略，浏览器会自动生成带boundary的Content-Type
+    }
+  });
+};
 // 用户登录
 export const login =  (params={}) => {
   return 	request({
@@ -38,10 +56,24 @@ export const login =  (params={}) => {
   	        params: params,
   })
 }
+export const updateOrder =  (params={},id) => {
+  return 	request({
+  			method: 'PATCH',
+  	        url: '/order/'+id,
+  	        params: params,
+  })
+}
 export const approveOrder =  (params={},id) => {
   return 	request({
   			method: 'PATCH',
   	        url: '/order/approval/'+id,
+  	        params: params,
+  })
+}
+export const stepOrder =  (params={},id) => {
+  return 	request({
+  			method: 'PATCH',
+  	        url: '/order/step/'+id,
   	        params: params,
   })
 }
@@ -94,6 +126,12 @@ export const addLock = (params={}) => {
  			method: 'POST',
  	        url: '/lock',
  	        params: params
+ })
+}
+export const getImg = (name) => {
+ return 	request({
+ 			method: 'GET',
+ 	        url: '/uploads/'+name,
  })
 }
 export const updateLock = (params={},id) => {
