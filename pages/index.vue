@@ -28,25 +28,25 @@
 		</view>
 		<view class="flex diygw-col-24">
 			<view class="diygw-grid col-3">
-				<view @tap="navigateTo" data-type="page" data-url="/pages/order/index" class="diygw-grid-item">
+				<view  @tap="navigateTo" data-type="page" data-url="/pages/order/index" class="diygw-grid-item">
 					<view class="diygw-grid-inner">
 						<view class="diygw-grid-icon diygw-avatar diy-icon-vipcard"> </view>
 						<view class="diygw-grid-title"> 工单详情 </view>
 					</view>
 				</view>
-				<view @tap="navigateTo" data-type="page" data-url="/pages/human/human" class="diygw-grid-item">
+				<view v-if="isAdmin" @tap="navigateTo" data-type="page" data-url="/pages/human/human" class="diygw-grid-item">
 					<view class="diygw-grid-inner">
 						<view class="diygw-grid-icon diygw-avatar diy-icon-profile"> </view>
 						<view class="diygw-grid-title"> 人员管理 </view>
 					</view>
 				</view>
-				<view @tap="navigateTo" data-type="page" data-url="/pages/lock/index" class="diygw-grid-item">
+				<view v-if="isAdmin" @tap="navigateTo" data-type="page" data-url="/pages/lock/index" class="diygw-grid-item">
 					<view class="diygw-grid-inner">
 						<view class="diygw-grid-icon diygw-avatar diy-icon-magic"> </view>
 						<view class="diygw-grid-title"> 锁具管理 </view>
 					</view>
 				</view>
-				<view @tap="navigateTo" data-type="page" data-url="/pages/station/index" class="diygw-grid-item">
+				<view v-if="isAdmin" @tap="navigateTo" data-type="page" data-url="/pages/station/index" class="diygw-grid-item">
 					<view class="diygw-grid-inner">
 						<view class="diygw-grid-icon diygw-avatar diy-icon-shop"> </view>
 						<view class="diygw-grid-title"> 站点管理 </view>
@@ -96,6 +96,13 @@
 				},
 				search: ''
 			};
+		},
+		computed:{
+			isAdmin(){
+				let roles=uni.getStorageSync('user').roles
+				const hasId5 = roles.some(item => item.id === 1)
+				return hasId5
+			},
 		},
 		onShow() {
 			this.setCurrentPage(this);

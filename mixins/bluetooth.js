@@ -12,6 +12,7 @@ let lock = null
 export default {
 	data() {
 		return {
+			curkey:'',
 			unLockType: 0, //1蓝牙开锁、2网关开锁
 			list: [], // 已搜索到的蓝牙设备
 			adapterState: [], //  适配器状态
@@ -510,7 +511,7 @@ export default {
 					         	console.log(res)
 					         })
 							 stepOrder({id:lock.currentStep.id,lockStatus:1,task:lock.currentStep.task,status:5,orderId:lock.currentStep.orderId},lock.currentStep.id).then(res=>{
-								 lock.currentStep.status=6
+								 lock.currentStep.status=5
 							 						  console.log(res)
 							 					
 							 })
@@ -529,12 +530,31 @@ export default {
 					// lock.sendUnlockInstruct1(ins13)
 				}
 				if (code == '01') {
-					lock.someDataFromB = lock.parseLockData(data)
-					let ins02 = await getLockCmd({type:0x02, roll:lock.roll, id:lock.currentLock.id, cmd:data})
-					ins02=[ins02.data.data['cmd']]
-					// console.log('ins',ins13)
-					lock.sendUnlockInstruct1(ins02)
+					//如果是新锁 就获取10发送10 patch锁得key
+					console.log('newlock', data.slice(46, 48))
+					let newlock=data.slice(46, 48)
+					if(newlock!=='aa'){
+						lock.someDataFromB = lock.parseLockData(data)
+						
+					//	let ins02 = await getLockCmd({type:0x02, roll:lock.roll, id:lock.currentLock.id, cmd:data})
+
+					//	ins02=[ins02.data.data['cmd']]
+					
+						
+					}else{
+						// let ins02 = await getLockCmd({type:0x02, roll:lock.roll, id:lock.currentLock.id, cmd:data})
+						// ins02=[ins02.data.data['cmd']]
+						// await lock.sendUnlockInstruct1(ins02)
+						console.log('旧锁')
+						return ;
+					}
+			
+					
 					// console.log('lock.someDataFromB', lock.someDataFromB)
+				}
+				if(code==='10'){
+					this.baseDataFromB.currentKey=lock.curkey
+			
 				}
 
 			}, err => {

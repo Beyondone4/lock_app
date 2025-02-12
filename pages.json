@@ -160,6 +160,13 @@
 		    }
 		},
 		{
+		    "path": "pages/human/roster",
+		    "style": {
+		        "navigationBarTitleText": "信息修改",
+		        "navigationBarBackgroundColor": "#07c1c1"
+		    }
+		},
+		{
 		    "path": "pages/order/index",
 		    "style": {
 		        "navigationBarTitleText": "工单管理",

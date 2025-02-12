@@ -1,9 +1,17 @@
+<!-- 实现工单执行得实时性，先把orderlist改成vuex，执行任务后orderlist，紧接着根据执行后得stepid更新orderstep -->
 <template>
+
 	<view class="container container15293">
+		<view style="z-index: 10000001;">
+			<!-- 提示信息弹窗 -->
+			<uni-popup ref="message" type="message">
+				<uni-popup-message :type="msgType" :message="messageText" :duration="2000"></uni-popup-message>
+			</uni-popup>
+		</view>
 		<view class="flex flex-wrap diygw-col-24 flex-direction-column flex2-clz">
 		<view class="toolbar">
-		  <button class="btn" @click="clickAddFunction" >新增</button>
-		  <button class="btn" @tap="onDelete('batch')">批量删除</button>
+		  <button v-if="isDispatch" class="btn" @click="clickAddFunction" >新增</button>
+		  <button  v-if="isDispatch" class="btn" @tap="onDelete('batch')">批量删除</button>
 		
 		  <!-- 搜索框区域 -->
 		  <view class="search-box">
@@ -35,7 +43,7 @@
 						<uni-td >
 						<button style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickDetailFunction(item,'detail')">详情</button>
 					<button :disabled="isCurrentApproval(item)" v-if="isApproval" style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickApproval(item)">审批</button>
-						<button type="warn" size="mini" @click="onDelete('one',item)" >删除</button>
+						<button type="warn"  v-if="isDispatch" size="mini" @click="onDelete('one',item)" >删除</button>
 						</uni-td>
 					</uni-tr>
 				</uni-table>
@@ -57,7 +65,7 @@
 			<uni-forms-item  label="操作员" name="name">
 					<zqs-select
 					  :multiple="false"
-					  :list="this.humansData"
+					  :list="operatorList"
 					  :showSearch="false"
 					  label-key="username"
 					  value-key="id"
@@ -82,7 +90,7 @@
 						
 							<zqs-select
 							         :multiple="true"
-							         :list="this.humansData"
+							         :list="approvalList"
 							         label-key="username"
 							         value-key="id"
 							         placeholder=" 请选择授权联系人"
@@ -148,7 +156,7 @@
 			<uni-forms-item v-if="orderstep.task>=2"   label="指定审核员" name="name">
 						<zqs-select
 						  :multiple="false"
-						  :list="this.humansData"
+						  :list="reviewerList"
 						  :showSearch="false"
 						  label-key="username"
 						  value-key="id"
@@ -185,8 +193,8 @@
 			        <template v-slot:title>
 			          <uni-list>
 			            <uni-list-item 
-			              :title="`步骤 ${step.sort} - 任务 ${tasks.find(item=>item.id==step.task)['name']} ${step.lockId==null?'':lockList.find(item=>item.id==step.lockId)['name']}`" 
-			              :show-extra-icon="step.status>3" 
+			              :title="`步骤 ${step.sort} - 任务 ${tasks.find(item=>item.id==step.task).name} ${step.lockId==null?'':lockList.find(item=>item.id==step.lockId)['name']}`" 
+			              :show-extra-icon="step.status===5 || step.status===7" 
 			              :extra-icon="extraIcon">
 			            </uni-list-item>
 			          </uni-list>
@@ -195,10 +203,22 @@
 			        <view class="content">
 					<!-- todo:如果当前是开锁，就显示锁的详细信息 -->
 			          <!-- 根据用户ID判断按钮的显示 -->
-			
+					            <p v-if="step.task === 1">
+					              锁名称: {{ lockList.find(lock => lock.id === step.lockId).name }}
+					            </p>
+					            <p v-if="step.task === 1">
+					              锁位置: {{ lockList.find(lock => lock.id === step.lockId).location }}
+					            </p>
+					            <p v-if="step.task === 1">
+					              锁电量: {{ parseInt(lockList.find(lock => lock.id === step.lockId).power, 16) }}
+					            </p>
+					            <p v-if="step.task === 1">
+					              锁SN码: {{ lockList.find(lock => lock.id === step.lockId).sn }}
+					            </p>
+
 			          <button 
 						 :disabled="step.sort> curStep"
-			            v-if="step.task ===1 && selectedItem.status>=3&&selectedItem.status!=10" 
+			            v-if="step.task ===1 && selectedItem.status>=3&&selectedItem.status!=10&&isOp" 
 			            type="primary" 
 			            size="mini" 
 			            @click="handleUnlock(step)">
@@ -224,7 +244,7 @@
 			
 			          <uni-file-picker 
 					 :disabled="step.sort>curStep"
-					  v-if="step.task === 3 && (step.status==3 || step.status==4)" 
+					  v-if="step.task === 3 && (step.status==3 || step.status==4)&&isOp" 
 			          	v-model="imageValue" 
 			          	fileMediatype="image" 
 			          	mode="grid" 
@@ -260,16 +280,17 @@
 			            上传状态
 			          </button> -->
 					  <button
-					   :disabled="step.sort> curStep"
-					    v-if="(step.task === 3 || step.task === 4)&& selectedItem.status>=3&&selectedItem.status!=10" 
+					   :disabled="step.sort> curStep&&step.status!=6"
+					    v-if="(step.task === 3 || step.task === 4)&& selectedItem.status>=3&&selectedItem.status!=10&&isOp" 
 					    type="primary" 
 					    size="mini" 
 					    @click="handleUpload(step)">
 					    上传
 					  </button>
+					<!--  当是审核员或者超级管理员的时候可见，当该自己审批的时候才可用 -->
 					  <button
-					   :disabled="!(step.reviewerId===userid&&ableReview)"
-					    v-if="isReview&&step.task>=3 &&selectedItem.status!=10" 
+					   :disabled="!(step.reviewerId===userid&&step.status===6)"
+					    v-if="isReview&&step.task>=3 &&selectedItem.status<10" 
 					    type="primary" 
 					    size="mini" 
 					    @click="handleReview(step)">
@@ -284,7 +305,7 @@
 		
 					
 				<view class="flex justify-end">
-					<button :disabled="selectedItem.status===8?false:true" @tap="clickConfirm"  class="diygw-btn green flex1 margin-xs">提交工单</button>
+					<button :disabled="(selectedItem.status===8&&isOp)?false:true" @tap="clickConfirm"  class="diygw-btn green flex1 margin-xs">提交工单</button>
 					<button data-type="closemodal" @tap="navigateTo" data-id="detail" class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
@@ -364,7 +385,7 @@
 					<view class="justify-end diygw-bar">
 						<view class="content"> 
 						<text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
-						 请确认工单所有步骤已完成并关闭所有锁具后进行提交！
+						 请确认工单所有步骤已完成！
 						</text>
 						 </view>
 					
@@ -407,6 +428,9 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  { id: 9, name: '已确认', type: 'success' },
 				  { id: 10, name: '已完成', type: 'success' },
 				],
+				reviewerList:[],
+				approvalList:[],
+				operatorList:[],
 				extraIcon: {
 						color: '#4cd964',
 						size: '22',
@@ -433,6 +457,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				//自定义全局变量
 				globalData: { iduser: 0, storeflowid: 0 },
 				selectedItem:{},
+				queryItems:{},
 				addItem:{},
 				orderData:{},//表单数据
 				operatorId:null,
@@ -474,27 +499,59 @@ import bluetooth from '../../mixins/bluetooth.js'
 				detail:'',
 				oderStepsModal:'',
 				approval:'',
-				submit:''
+				submit:'',
+				
+				msgType: 'success',
+				messageText: '这是一条成功提示',
+			
 			};
 		},
 		computed: {
 			isApproval(){
 				let roles=uni.getStorageSync('user').roles
-				const hasId5 = roles.some(item => item.id === 5||item.id===1)
+				const hasId5 = roles.some(item => item.id === 5)
 				return hasId5
 			},
 			isReview(){
 				let roles=uni.getStorageSync('user').roles
 				
-				const hasId5 = roles.some(item => item.id === 2||item.id===1)
+				const hasId5 = roles.some(item => item.id === 2)
+				console.log('roles',hasId5)
+				return hasId5
+			},
+			isDispatch(){
+				let roles=uni.getStorageSync('user').roles
+				
+				const hasId5 = roles.some(item => item.id === 6)
+				console.log('roles',hasId5)
+				return hasId5
+			},
+			isOp(){
+				let roles=uni.getStorageSync('user').roles
+				
+				const hasId5 = roles.some(item => item.id === 9)
 				console.log('roles',hasId5)
 				return hasId5
 			},
 			curStep(){
-				const nowstep = this.selectedItem.orderSteps.find(item => item.status===3)||this.selectedItem.orderSteps.find(item => item.status===6)||this.selectedItem.orderSteps.find(item => item.status===7)
+				let nowstep
+				if(this.selectedItem.status===3||this.selectedItem.status===1){
+					 nowstep = this.selectedItem.orderSteps.find(item => item.status===3)||this.selectedItem.orderSteps.find(item => item.status===4)
+				}else if(this.selectedItem.status===6){
+					 nowstep =this.selectedItem.orderSteps.find(item => item.status===6)
+				}else if(this.selectedItem.status===8||this.selectedItem.status===10){
+					 const stepsWithStatus7 = this.selectedItem.orderSteps.filter(item => item.status === 7);
+					 console.log('step',stepsWithStatus7)
+					  nowstep = stepsWithStatus7.length ? stepsWithStatus7[stepsWithStatus7.length - 1] : undefined;
+
+				}else if(this.selectedItem.status===-1){
+					 nowstep =this.selectedItem.orderSteps.find(item => item.status===3)
+				}
+				
 				console.log('this.selectedItem',this.selectedItem)
 				return nowstep.sort
-			}
+			},
+
 		
 		  },
 		onShow() {
@@ -507,8 +564,29 @@ import bluetooth from '../../mixins/bluetooth.js'
 					globalOption: this.getOption(option)
 				});
 			}
-		
-
+		this.userInfo=uni.getStorageSync('user')
+		this.userid=this.userInfo.id
+		console.log('userid',this.userInfo.roles[0].id)
+			if(this.userInfo.roles[0].id===1){
+				this.queryItems.all=1
+			}
+			if(this.userInfo.roles[0].id===2){
+				this.queryItems.all=1
+				this.queryItems.reviewerId=this.userInfo.id
+			}
+			if(this.userInfo.roles[0].id===5){
+				this.queryItems.all=1
+				this.queryItems.approvalId=this.userInfo.id
+			}
+			if(this.userInfo.roles[0].id===6){
+				this.queryItems.all=1
+				this.queryItems.dispatcherId=this.userInfo.id
+			}
+			if(this.userInfo.roles[0].id===9){
+				this.queryItems.all=1
+				this.queryItems.operatorId=this.userInfo.id
+			}
+	
 			this.init();
 		},
 		methods: {
@@ -560,6 +638,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 									
 				})
 			},
+	
 			clickConfirm(){
 				this.navigateTo({
 					type: 'openmodal',
@@ -734,41 +813,8 @@ import bluetooth from '../../mixins/bluetooth.js'
 			this.sendUnlockInstruct1(ins01);
 	      });
 		await  this.Unlock(step)
-	    // await new Promise(resolve => setTimeout(resolve, 500));
-	    
-	    // 调用接口获取开锁指令（类型 0xE0）
-	    // await getLockCmd({ id: step.lockId, roll: this.roll, type: 0xE0 })
-	    //   .then(res => {
-	    //     console.log(res);
-	    //     ins.push(res.data.data['cmd']);
-	    //   });
-	    // console.log('蓝牙设备roll:', this.roll);
-	    // this.sendUnlockInstruct(ins);
-	    
-
-		//todo：发送01校验开锁，如果状态为开patch更改锁状态，然后patch orderstep状态
-	      // 如有需要，可更新步骤状态（例如标记为已开锁）
-	      // step.status = 'unlocked';
-	      // this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
-	  //    await this.Unlock(step)
-		 //  getLockCmd({ id: step.lockId, roll: this.roll, type: 0x01 })
-		 //   .then(async res => {
-		 // 	let ins01=[]
-		 //     console.log(res);
-		 //     ins01.push(res.data.data['cmd']);
-		 // 	// ins1.push('0100000dc1020101e1b219020800241ac6')
-		 //  await	this.sendUnlockInstruct1(ins01);
-			// console.log('someDataFromB',this.someDataFromB)
-			// if(this.someDataFromB.lockStatus=='01'){
-			// 	updateLock({lockStatus:this.someDataFromB.lockStatus},step.lockId).then(res=>{
-			// 		if(res.data.code==0){
-			// 			step.status = 5;
-			// 			this.$set(this.selectedItem.orderSteps, this.selectedItem.orderSteps.indexOf(step), step);
-			// 		}
-			// 	})
-			// }
-		 //   });
-	      // console.log('开锁操作完成:', step);
+		
+	
 	    } else {
 	      // 未找到设备时给出提示
 	      uni.showToast({
@@ -827,6 +873,13 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  //首先判断step的status是不是执行中，不是直接返回
 				  //当上传图片时，更改setp patch 状态改为审核中
 				  //当上传状态量时
+				  if(step.status===7){
+					  return
+				  }
+				  uni.showLoading({
+				    title: '上传中...',
+				    mask: true // 可选，设置为 true 可以避免用户点击操作
+				  });
 				  let stepform={
 					  id:step.id,
 					  orderId:step.orderId,
@@ -838,7 +891,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 					  stepform.imageUrl=this.currentImg
 					  await stepOrder(stepform,step.id).then(res=>{
 						  console.log(res)
-						this.ableReview=true
+					this.selectedItem.status=6
 						 
 					  })
 				  }
@@ -847,10 +900,14 @@ import bluetooth from '../../mixins/bluetooth.js'
 					  console.log('step.comment',stepform)
 					 await stepOrder(stepform,step.id).then(res=>{
 					 						  console.log('sss',res)
-					 				this.ableReview=true	 	
+					 			 	this.selectedItem.status=6
 					
 					 })
 				  }
+				  uni.hideLoading()
+				  this.msgType = 'success'
+				this.messageText = `成功上传，请等待审核`
+				this.$refs.message.open()
 			    console.log('上传状态操作完成:', step);
 			  },
 			
@@ -904,14 +961,13 @@ import bluetooth from '../../mixins/bluetooth.js'
 						this.getData(e.current)
 					},
 			async init() {
-
-				this.userInfo=uni.getStorageSync('user')
-				this.userid=this.userInfo.id
-				console.log('userid',this.userInfo.id)
-			await	getUserList({pageNo:-1}).then(res=>{
-					this.humansData =res.data.data.pageData
-				})
-				await getOrderList({all:1}).then(res=>{
+		      let res= await getUserList({pageNo:-1})
+			  this.humansData =res.data.data.pageData
+			console.log('human',this.humansData)
+	
+		
+				console.log('this.queryItems',this.queryItems)
+				await getOrderList(this.queryItems).then(res=>{
 					console.log("dadsadasdasdasd",res)
 					if(res.data.code==10002){
 						uni.clearStorageSync()
@@ -1127,6 +1183,18 @@ import bluetooth from '../../mixins/bluetooth.js'
 				
 			async clickAddFunction(){
 				this.orderStepList=[]
+				if(this.reviewerList.length===0||this.approvalListlength===0||this.operatorListlength===0){
+				
+						this.reviewerList =this.humansData.filter(item => item.roles[0].id === 2)
+				
+			
+						this.approvalList= this.humansData.filter(item => item.roles[0].id === 5)
+			
+					
+						 this.operatorList =this.humansData.filter(item => item.roles[0].id === 9)
+			
+				}
+			console.log('this.reviewerList',this.humansData)
 				this.navigateTo({
 					type: 'openmodal',
 					id: 'add'

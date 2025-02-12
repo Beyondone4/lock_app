@@ -48,6 +48,7 @@ export const uploadimg = (name, file) => {
     }
   });
 };
+
 // 用户登录
 export const login =  (params={}) => {
   return 	request({
@@ -84,7 +85,13 @@ export const createOrder =  (params={}) => {
   	        params: params,
   })
 }
-
+export const getAllroles = (params={}) => {
+ return 	request({
+ 			method: 'GET',
+ 	        url: '/role?enable=1',
+ 	        params: params
+ })
+}
 export const getOrderList = (params={}) => {
  return 	request({
  			method: 'GET',
@@ -121,6 +128,13 @@ export const addStation = (params={}) => {
  	        params: params
  })
 }
+export const addUser = (params={}) => {
+ return 	request({
+ 			method: 'POST',
+ 	        url: '/user',
+ 	        params: params
+ })
+}
 export const addLock = (params={}) => {
  return 	request({
  			method: 'POST',
@@ -134,6 +148,13 @@ export const getImg = (name) => {
  	        url: '/uploads/'+name,
  })
 }
+export const resetPwd = (data,id) => {
+ return 	request({
+ 			method: 'PATCH',
+ 	        url: '/user/password/reset/'+id,
+ 	        data: data
+ })
+}
 export const updateLock = (params={},id) => {
  return 	request({
  			method: 'PATCH',
@@ -145,6 +166,13 @@ export const updateStation = (params={},id) => {
  return 	request({
  			method: 'PATCH',
  	        url: '/station/'+id,
+ 	        params: params
+ })
+}
+export const deleteUsers = (params={}) => {
+ return 	request({
+ 			method: 'DELETE',
+ 	        url: '/users',
  	        params: params
  })
 }

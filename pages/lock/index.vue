@@ -101,7 +101,7 @@
 						          </text>
 						          <button
 						            style="margin-left: 10px;"
-						            @click="connectBluetoothDevice(device)"
+						            @click="bindDevice(device)"
 						          >
 						            选择此锁具
 						          </button>
@@ -245,6 +245,20 @@ import store from '@/store/index.js';
 			this.init();
 		},
 		methods: {
+			async bindDevice(device){
+				if(device){
+					// 调用蓝牙连接方法
+					  // console.log('device',device)
+					  this.connectBluetoothDevice(device);
+					  this.device=device
+				
+					  
+					  // console.log('蓝牙设备已连接, roll:', this.roll);
+					  
+				
+				}
+				
+			},
 			 parseLockData(rawHex) {
 			  // 第 11 个字节下标是 10，每字节占 2 个 hex 字符 => 跳过前 20 个 hex 字符
 			  const subHex = rawHex.slice(20);
@@ -347,12 +361,31 @@ import store from '@/store/index.js';
 					console.log(this.selectedItem)
 				// 在页面B中从本地存储中读取数据
 					let id=null
-					await addLock({adminId:this.currentUser.id,enable:true,...this.selectedItem,...this.baseDataFromB,...this.someDataFromB}).then(res=>{
-						console.log(res.data.data)
-						id=res.data.data
-					
-					})
+				
+					// 发送开锁指令（类型 0x01）
+					 getLockCmd({ id: id, roll: this.roll, type: 0x01 })
+					  .then(async res => {
+						let ins01=[]
+						let id=null
+					    // console.log(res);
+					    ins01.push(res.data.data['cmd']);
+						// ins1.push('0100000dc1020101e1b219020800241ac6')
+					await	this.sendUnlockInstruct1(ins01);
+					  });
+				     addLock({adminId:this.currentUser.id,enable:true,...this.selectedItem,...this.baseDataFromB,...this.someDataFromB}).then(res=>{
+					  	console.log(res.data.data)
+					  	id=res.data.data
+					  
+					  })
+					//根据id取10命令，
 					//请求10命令更改密钥
+					let ins10=await  getLockCmd({id:id,roll:this.roll,type:0x10})
+					let curkey=ins10.data.data['key']
+					ins10=[ins10.data.data['cmd']]
+					await lock.sendUnlockInstruct1(ins10)
+					await updateLock({currentKey:curkey,id:id},id).then(res=>{
+					         	console.log(res)
+					         })
 					// await  getLockCmd({id:id,roll:this.roll,type:0x10}).then(res=>{
 					// 							 console.log('10get',res)
 					// })
