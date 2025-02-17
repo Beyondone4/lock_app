@@ -1,14 +1,14 @@
 // vue.config.js
-module.exports = {
-    devServer: {
-		    proxy: {
-		      '/api': {
-		        target: 'http://182.92.76.31:8800',
-				changeOrigin: true,
-		        pathRewrite: {
-		          '^/api': ''
-		        }
-		      }
-		    },
-	}
-} 
+// module.exports = {
+//     devServer: {
+// 		    proxy: {
+// 		      '/api': {
+// 		        target: 'http://ak8413jn4768.vicp.fun:80',
+// 				changeOrigin: true,
+// 		        pathRewrite: {
+// 		          '^/api': ''
+// 		        }
+// 		      }
+// 		    },
+// 	}
+// } 

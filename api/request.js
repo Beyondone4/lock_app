@@ -49,6 +49,7 @@ function handleRequest(options, resolve, reject) {
 		})
 		return
 	}
+	console.log('BASEURL',BASEURL)
 	uni.request({
 		url: BASEURL +  options.url,
 		method: options.method,

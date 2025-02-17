@@ -152,7 +152,7 @@ import { login,getUserInfo ,refreshToken } from '../api/user.js';
 			  captcha: this.form.captcha
 			
 		    };
-			
+			console.log('http_data',http_data)
 			await login(http_data).then(res=>{
 				this.loginBn=res.data
 			})

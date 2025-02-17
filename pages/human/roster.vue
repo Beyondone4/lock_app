@@ -1,97 +1,43 @@
 <template>
 	<view class="container container15293">
 		<u-form :model="form" :rules="formRules" :errorType="['message', 'toast']" ref="formRef" class="flex diygw-form diygw-col-24">
-			<u-form-item :required="true" class="diygw-col-24" label="项目" prop="idProject">
-				<u-input @click="formData.showIdProject = true" class="" placeholder="请选择项目" v-model="form.idProjectLabel" type="select"></u-input>
-			</u-form-item>
-			<u-select mode="single-column" valueName="id" labelName="title" :list="projectData.rows" :defaultValue="[form.idProjectIndex]" v-model="formData.showIdProject" @confirm="changeFormIdProject"></u-select>
-			<u-form-item class="diygw-col-24" :required="true" label="姓名" prop="name">
+
+			
+			<u-form-item class="diygw-col-24" :required="true" label="用户名" prop="name">
 				<u-input :focus="formData.nameFocus" class="" placeholder="请输入提示信息" v-model="form.name" type="text"></u-input>
 			</u-form-item>
-			<u-form-item :required="true" class="diygw-col-24" label="工种" prop="idWorker">
-				<u-input @click="formData.showIdWorker = true" class="" placeholder="请选择工种" v-model="form.idWorkerLabel" type="select"></u-input>
+			<u-form-item :required="true" class="diygw-col-24" label="密码" prop="idWorker">
+				<u-input @click="formData.showIdWorker = true" class="" placeholder="请输入密码" v-model="form.idWorkerLabel" type="text"></u-input>
 			</u-form-item>
-			<u-select mode="single-column" valueName="id" labelName="name" :list="workerData.rows" :defaultValue="[form.idWorkerIndex]" v-model="formData.showIdWorker" @confirm="changeFormIdWorker"></u-select>
+			<u-form-item class="diygw-col-24" label="性别" :required="true" prop="checkinTime">
+				<u-input @click="formData.showCheckinTime = true" class="" placeholder="请选择" v-model="form.checkinTime" type="select"></u-input>
+			</u-form-item>
+			<u-select mode="single-column" valueName="id" labelName="name" :list="educationData.rows" :defaultValue="[form.idEduIndex]" v-model="formData.showIdEdu" @confirm="changeFormIdEdu"></u-select>
 			<u-form-item class="diygw-col-24" :required="true" label="身份证号" prop="cardNum">
 				<u-input :focus="formData.cardNumFocus" class="" placeholder="请输入身份证号" v-model="form.cardNum" type="text"></u-input>
 			</u-form-item>
-			<view class="flex flex-wrap diygw-col-24 flex2-clz">
-				<view class="flex flex-wrap diygw-col-12 flex-direction-column items-center flex3-clz">
-					<u-form-item :borderBottom="false" class="diygw-col-0" labelPosition="top" prop="cardImg">
-						<u-upload customBtn width="320" height="240" margin="0" maxCount="1" @on-success="uploadFormCardImg" @on-remove="delFormCardImg" action="/sys/storage/upload" :file-list="formData.cardImgListDatas">
-							<template v-slot:addBtn> <u-image src="https://YourWebsite.cn/static/sfzzm.png" width="320" height="240"></u-image> </template>
-						</u-upload>
-					</u-form-item>
-					<view class="diygw-col-0 text5-clz"> 点击上传身份证正面 </view>
-				</view>
-				<view class="flex flex-wrap diygw-col-12 flex-direction-column items-center flex5-clz">
-					<u-form-item :borderBottom="false" class="diygw-col-0" labelPosition="top" prop="cardImgb">
-						<u-upload customBtn width="320" height="240" margin="0" maxCount="1" @on-success="uploadFormCardImgb" @on-remove="delFormCardImgb" action="/sys/storage/upload" :file-list="formData.cardImgbListDatas">
-							<template v-slot:addBtn> <u-image src="https://YourWebsite.cn/static/sfzfm.png" width="320" height="240"></u-image> </template>
-						</u-upload>
-					</u-form-item>
-					<view class="diygw-col-0 text6-clz"> 点击上传身份证反面 </view>
-				</view>
-			</view>
-			<u-form-item class="diygw-col-24" label="报到日期" :required="true" prop="checkinTime">
-				<u-input @click="formData.showCheckinTime = true" class="" placeholder="请选择" v-model="form.checkinTime" type="select"></u-input>
-			</u-form-item>
-			<u-calendar maxDate="2050-12-31" v-model="formData.showCheckinTime" mode="date" @change="changeFormCheckinTime"></u-calendar>
 			<u-form-item class="diygw-col-24" :required="true" label="手机" prop="phone">
 				<u-input :focus="formData.phoneFocus" class="" placeholder="请输入手机号" v-model="form.phone" type="number"></u-input>
 			</u-form-item>
-			<u-form-item :required="true" class="diygw-col-24" label="学历" prop="idEdu">
-				<u-input @click="formData.showIdEdu = true" class="" placeholder="请选择学历" v-model="form.idEduLabel" type="select"></u-input>
+			<u-form-item :required="true" class="diygw-col-24" label="邮箱" prop="idEdu">
+				<u-input @click="formData.showIdEdu = true" class="" placeholder="请输入" v-model="form.idEduLabel" type="text"></u-input>
 			</u-form-item>
-			<u-select mode="single-column" valueName="id" labelName="name" :list="educationData.rows" :defaultValue="[form.idEduIndex]" v-model="formData.showIdEdu" @confirm="changeFormIdEdu"></u-select>
-			<u-form-item class="diygw-col-24" label="学历照" prop="eduImg">
-				<u-upload margin="0" maxCount="1" @on-success="uploadFormEduImg" @on-remove="delFormEduImg" action="/sys/storage/upload" :file-list="formData.eduImgListDatas"> </u-upload>
+			<u-form-item :required="true" class="diygw-col-24" label="地址" prop="idEdu">
+				<u-input @click="formData.showIdEdu = true" class="" placeholder="请输入地址" v-model="form.idEduLabel" type="text"></u-input>
 			</u-form-item>
-			<u-form-item class="diygw-col-24" label="上岗工作证(支持多图)" prop="certificatesImg">
-				<u-upload maxCount="6" @on-success="uploadFormCertificatesImg" @on-remove="delFormCertificatesImg" action="/sys/storage/upload" :file-list="formData.certificatesImgListDatas"> </u-upload>
-			</u-form-item>
-			<u-form-item class="diygw-col-24" :required="true" label="银行卡号" prop="bankNum">
-				<u-input :focus="formData.bankNumFocus" class="" placeholder="请输入银行卡号" v-model="form.bankNum" type="text"></u-input>
-			</u-form-item>
-			<u-form-item class="diygw-col-24" label="银行卡照片" prop="bankImg">
-				<u-upload margin="0" maxCount="1" @on-success="uploadFormBankImg" @on-remove="delFormBankImg" action="/sys/storage/upload" :file-list="formData.bankImgListDatas"> </u-upload>
-			</u-form-item>
-			<u-form-item class="diygw-col-24" :required="true" label="开户行支行" prop="bankAddress">
-				<u-input :focus="formData.bankAddressFocus" class="" placeholder="请输入开户行支行信息（详细,包含省市区）" v-model="form.bankAddress" type="text"></u-input>
-			</u-form-item>
-			<view class="diygw-col-24 text8-clz"> 半身照请联系同事辅助完成拍摄，严格按照模板拍摄，否则一律不通过（纯白背景，露肩，手臂自然垂直） </view>
-			<view class="flex flex-wrap diygw-col-24 flex1-clz">
-				<u-form-item class="diygw-col-13" label="半身照" prop="bustPhotos">
-					<u-upload margin="0" maxCount="1" @on-success="uploadFormBustPhotos" @on-remove="delFormBustPhotos" action="/sys/storage/upload" :file-list="formData.bustPhotosListDatas"> </u-upload>
-				</u-form-item>
-				<image src="https://YourWebsite.cn/static/shili.jpg" class="diygw-image diygw-col-11" style="height: 120px !important; width: 100% !important" mode="aspectFit"></image>
-			</view>
-			<view class="flex flex-wrap diygw-col-24 flex-direction-column flex4-clz">
-				<view class="diygw-col-0 text1-clz"> 问：是否有以下基础病？ </view>
-				<view class="diygw-col-0 text3-clz"> 心脏病、高血压、中风、贫血、癫痫等心脑血管疾病病史 </view>
-				<view class="diygw-col-0 text7-clz"> 请如实申报，如因基础病发生的一切后果，均由个人承担 </view>
-				<u-form-item class="diygw-col-21 illness-clz" label="请选择" :required="true" prop="illness">
-					<u-radio-group class="flex flex-wrap diygw-col-24 justify-between" wrapClass=" justify-between" activeColor="#39b54a" v-model="form.illness" @change="changeFormIllness">
-						<u-radio shape="circle" v-for="(radioitem, radioindex) in formData.illnessDatas" :key="radioindex" :name="radioitem.value">
-							{{ radioitem.label }}
-						</u-radio>
-					</u-radio-group>
-				</u-form-item>
-			</view>
-			<view class="flex flex-wrap diygw-col-24 flex-direction-column flex-clz">
-				<view class="diygw-col-0 text-clz"> 入职声明及提醒： </view>
-				<view class="diygw-col-0 text2-clz"> 施工人员进入施工现场必须依甲方工地规定正确穿戴与从事工种相关的劳保防护用品。 遵守甲方工地的基本规范，不准乱扔生活垃圾，不准在禁烟的施工区域内吸烟、严禁酒后上岗。申请入职人员所提交身份证件、上岗操作证件必须真实有效，如有冒用他人证件或使用虚假证件者需承担相应法律责任，所造成的财产损失公司保留追究其赔偿责任。 </view>
-				<view class="diygw-col-0 text4-clz"> 请仔细阅读入职声明！并且在下方输入“本人已了解工作规范与法律责任” </view>
-				<u-form-item class="diygw-col-24" :required="true" label="请填写" prop="rzsm">
-					<u-input :focus="formData.rzsmFocus" class="" placeholder="本人已了解工作规范与法律责任" v-model="form.rzsm" type="text"></u-input>
-				</u-form-item>
-			</view>
+			
+
+
+
+
+
+
 			<view class="flex diygw-col-24 button-clz">
-				<button @click="submitForm" class="diygw-btn cyan radius-xs flex-sub margin-xs button-button-clz"><text class="button-icon diy-icon-upblock"></text> 提交入职申请</button>
+				<button @click="submitForm" class="diygw-btn cyan radius-xs flex-sub margin-xs button-button-clz"><text class="button-icon diy-icon-upblock"></text> 提交信息修改</button>
 			</view>
-			<view class="flex diygw-col-24 chongzhi-clz">
+<!-- 			<view class="flex diygw-col-24 chongzhi-clz">
 				<button form-type="reset" class="diygw-btn red radius-xs flex-sub margin-xs chongzhi-button-clz"><text class="button-icon diy-icon-refresh"></text> 表单重置（用于重新输入所有内容）</button>
-			</view>
+			</view> -->
 		</u-form>
 		<view class="clearfix"></view>
 	</view>

@@ -14,7 +14,7 @@
 		  <button  v-if="isDispatch" class="btn" @tap="onDelete('batch')">批量删除</button>
 		
 		  <!-- 搜索框区域 -->
-		  <view class="search-box">
+<!-- 		  <view class="search-box">
 		    <input
 		      class="search-input"
 		      v-model="searchKeyword"
@@ -22,7 +22,7 @@
 		    />
 		    <button class="btn" @tap="onSearch">搜索</button>
 			  <button class="btn" @tap="onSearch">重置</button>
-		  </view>
+		  </view> -->
 		</view>
 			<view class="uni-container">
 				<uni-table  ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
