@@ -170,6 +170,7 @@ import { login,getUserInfo ,refreshToken } from '../api/user.js';
 			  					console.log('longres',res.data.data['accessToken'])
 								 uni.setStorageSync('token',res.data.data['accessToken'])
 			  				})
+				uni.setStorageSync('loginTime', Date.now())
 			   }
 			  await getUserInfo().then(res=>uni.setStorageSync('user',res.data.data))
 			

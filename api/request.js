@@ -20,6 +20,20 @@ function handleRequest(options, resolve, reject) {
 	uni.showLoading({
 		title: "加载中"
 	});
+		const loginTime = uni.getStorageSync('loginTime')
+		const now = Date.now()
+		const sevenDays = 7 * 24 * 60 * 60 * 1000  // 7天的毫秒数
+	
+	    // 如果token存在但已超过7天，则清除token并跳转到登录页面
+		if (token && loginTime && (now - loginTime > sevenDays)) {
+			uni.removeStorageSync('token')
+			uni.removeStorageSync('loginTime')
+			uni.reLaunch({
+				url: '/pages/login'
+			})
+			uni.hideLoading()
+			return;
+		}
 	if (!token&&!whiteList(options)) {
 		console.log("没有登录")
 		// 执行没有登录的逻辑

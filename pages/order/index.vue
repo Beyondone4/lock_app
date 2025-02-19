@@ -151,8 +151,22 @@
 					  v-model="orderstep.lockId"
 					></zqs-select>
 				</uni-forms-item>
-		
-		
+		<uni-forms-item v-if="orderstep.task===3"   label="步骤备注" name="name">
+				<uni-easyinput placeholder="可默认留空" type="text" v-model="orderstep.comment"
+					 />
+		</uni-forms-item>
+		<uni-forms-item  v-if="orderstep.task===4"  label="指定刀闸" name="name">
+				<zqs-select
+				  :multiple="false"
+				  :list="this.switchList"
+				  :showSearch="false"
+				  label-key="name"
+				  value-key="id"
+				  title="选择闸"
+				  clearable
+				  v-model="orderstep.switchId"
+				></zqs-select>
+			</uni-forms-item>
 			<uni-forms-item v-if="orderstep.task>=2"   label="指定审核员" name="name">
 						<zqs-select
 						  :multiple="false"
@@ -215,6 +229,9 @@
 					            <p v-if="step.task === 1">
 					              锁SN码: {{ lockList.find(lock => lock.id === step.lockId).sn }}
 					            </p>
+								<p v-if="step.task === 3">
+								  步骤备注: {{ step.comment }}
+								</p>
 
 			          <button 
 						 :disabled="step.sort> curStep"
@@ -428,6 +445,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  { id: 9, name: '已确认', type: 'success' },
 				  { id: 10, name: '已完成', type: 'success' },
 				],
+				switchList : [{ id: 1, name: '闸刀1' }, { id: 2, name: '闸刀2' }, { id: 3, name: '闸刀3' }]
 				reviewerList:[],
 				approvalList:[],
 				operatorList:[],
@@ -475,7 +493,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				orderStepList:[],//工单步骤集合，需转换
 				orderstep:{},//表单中表单步骤数据
 				// 每页数据量
-							pageSize: 2,
+							pageSize: 10,
 							// 当前页
 							pageCurrent: 1,
 							// 数据总量
@@ -953,6 +971,20 @@ import bluetooth from '../../mixins/bluetooth.js'
 			console.log(e.detail.index)
 			this.selectedIndexs = e.detail.index
 		},
+		getData(index){
+				 getOrderList({pageNo:index}).then(res=>{
+					console.log(res)
+					if(res.data.code==10002){
+						uni.clearStorageSync()
+						this.navigateTo({
+						  type: 'page',
+						  url: 'login'
+						});
+					}
+					this.orderList=res.data.data.pageData
+				
+				})
+			},
 				
 					// 分页触发
 					change(e) {
@@ -1051,12 +1083,12 @@ import bluetooth from '../../mixins/bluetooth.js'
 			
 		    if (taskExists) {
 		      // 弹窗提示无法创建
-		      uni.showToast({
-		        title: '无法创建，审核任务只能唯一',
-		        icon: 'none',
-		        duration: 2000
-		      });
-		      return; // 退出函数，避免添加重复的任务
+		      // uni.showToast({
+		      //   title: '无法创建，审核任务只能唯一',
+		      //   icon: 'none',
+		      //   duration: 2000
+		      // });
+		      // return; // 退出函数，避免添加重复的任务
 		    }
 		  }else if(this.orderstep.task === 1&&this.orderstep.lockId){
 			  console.log('success')
@@ -1132,19 +1164,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 			         this.humansData.data.map(item => this.$set(item,'checked',false));
 			      }
 			    },
-			// 我名下的资产 API请求方法
-			async myassetsDataApi(param) {
-				let thiz = this;
-				param = param || {};
-				//请求地址及请求数据，可以在加载前执行上面增加自己的代码逻辑
-				let http_url = 'bn/api.storeFlow/myassets';
-				let http_data = {};
-				let http_header = {};
 
-				let myassetsData = await this.$http.post(http_url, http_data, http_header, 'json');
-
-				this.myassetsData = myassetsData;
-			},
 			// 回仓 API请求方法
 			async clickRseIntoDataApi(param) {
 				let thiz = this;
@@ -1230,20 +1250,20 @@ import bluetooth from '../../mixins/bluetooth.js'
 	    const secondLastStep = this.orderSteps[this.orderSteps.length - 2];
 		
 	    if (!(lastStep.task === 4 && secondLastStep.task === 3)) {
-	      uni.showToast({
-	        title: '工单创建不符合规范，请确定上传审核顺序',
-	        icon: 'none',
-	        duration: 2000
-	      });
-	      return; // 退出函数，不继续保存
+	      // uni.showToast({
+	      //   title: '工单创建不符合规范，请确定上传审核顺序',
+	      //   icon: 'none',
+	      //   duration: 2000
+	      // });
+	      // return; // 退出函数，不继续保存
 	    }
 	  }else{
-		  uni.showToast({
-		    title: '工单至少创建三个步骤，请确定步骤合理',
-		    icon: 'none',
-		    duration: 2000
-		  });
-		  return ;
+		  // uni.showToast({
+		  //   title: '工单至少创建三个步骤，请确定步骤合理',
+		  //   icon: 'none',
+		  //   duration: 2000
+		  // });
+		  // return ;
 	  }
 	
 	  // 转换 checkApprovalList 为 orderApprovals
