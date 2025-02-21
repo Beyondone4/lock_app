@@ -1,50 +1,30 @@
 <template>
 	<view class="container container15293">
 		<view class="flex flex-wrap diygw-col-24 flex-direction-column flex6-clz">
-			<view class="flex diygw-col-24 justify-around flex-nowrap white flex2-clz" @tap="navigateTo"
-				data-type="page" data-url="/pages/null">
-				<view class="flex flex-wrap diygw-col-6 flex-direction-column items-center flex1-clz" @tap="navigateTo"
-					data-type="page" data-url="/pages/null">
-					<view class="diygw-col-0 diygw-text-lg text-blue"> 0 </view>
-					<view class="diygw-col-0 text-grey"> 待审批 </view>
-				</view>
-				<view class="flex flex-wrap diygw-col-6 flex-direction-column items-center flex4-clz">
-					<view class="diygw-col-0 diygw-text-lg text-blue"> 0 </view>
-					<view class="diygw-col-0 text-grey"> 待审核 </view>
-				</view>
-				<view class="flex flex-wrap diygw-col-6 flex-direction-column items-center flex4-clz">
-					<view class="diygw-col-0 diygw-text-lg text-blue"> 0 </view>
-					<view class="diygw-col-0 text-grey"> 待操作 </view>
-				</view>
+			<!-- <view class="flex diygw-col-24 justify-around flex-nowrap white flex2-clz" @tap="navigateTo"
+				data-type="page" data-url="/pages/order/index">
 
+			</view> -->
+		  <image 
+		    src="/static/guangfu1.png" 
+		    style="width: 100%; height: auto;  margin-bottom: 5px;" 
+		    mode="widthFix">
+		  </image>
+<view style="display: flex; align-items: center; padding: 20px; background-color: #ffffff; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin: 15px 0;">
+  <image 
+    :src="'http://118.31.245.112:8800'+userInfo.profile.avatar" 
+    style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #e0e0e0; margin-right: 20px;" 
+    mode="widthFix">
+  </image>
+  <view style="display: flex; flex-direction: column;">
+    <view style="font-size: 20px; font-weight: 600; color: #333;">{{ this.userInfo.profile.nickName }}</view>
+    <view style="margin-top: 8px; font-size: 15px; color: #555;">性别：{{ this.gender[this.userInfo.profile.gender] }}</view>
+    <view style="margin-top: 4px; font-size: 15px; color: #555;">邮箱：{{ this.userInfo.profile.email }}</view>
+    <view style="margin-top: 4px; font-size: 15px; color: #555;">电话：{{ this.userInfo.profile.phone }}</view>
+    <view style="margin-top: 4px; font-size: 15px; color: #555;">地址：{{ this.userInfo.profile.address }}</view>
+  </view>
+</view>
 
-			</view>
-			<view class="flex flex-wrap diygw-col-24 items-center flex8-clz">
-				<image :src="this.userInfo.profile.avatar" class="image-size diygw-image diygw-col-0 image-clz"
-					mode="widthFix"></image>
-				<view class="flex flex-wrap diygw-col-0 flex-direction-column items-start flex9-clz">
-					<view class="diygw-col-0 text1-clz">
-						{{ this.userInfo.profile.nickName }}
-					</view>
-					<view class="flex flex-wrap diygw-col-0 items-center flex10-clz">
-						<!-- <view v-for="item in this.userInfo.roles" class="diygw-col-0"> {{item.name}} </view> -->
-					</view>
-					<view class="flex flex-wrap diygw-col-0 items-center flex11-clz">
-						<view class="diygw-col-0"> 性别：{{ this.gender[this.userInfo.profile.gender] }} </view>
-					</view>
-					<view class="flex flex-wrap diygw-col-0 items-center flex11-clz">
-						<view class="diygw-col-0"> 邮箱：{{ this.userInfo.profile.email }} </view>
-					</view>
-					<view class="flex flex-wrap diygw-col-0 items-center flex11-clz">
-						<view class="diygw-col-0"> 电话：{{ this.userInfo.profile.phone }} </view>
-					</view>
-					<view class="flex flex-wrap diygw-col-0 items-center flex11-clz">
-						<view class="diygw-col-0"> 地址：{{ this.userInfo.profile.address }} </view>
-					</view>
-
-				</view>
-
-			</view>
 
 		</view>
 		<view class="flex diygw-col-24">

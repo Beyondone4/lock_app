@@ -20,7 +20,7 @@
 			<view class="uni-container">
 				<uni-table  ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
-						<uni-th width="50" align="center">站点名称</uni-th>
+						<uni-th width="80" align="center">站点名称</uni-th>
 						<uni-th width="50" align="center">站点编码</uni-th>
 						<uni-th  align="center">站点位置</uni-th>
 						<uni-th  align="center">站点管理员</uni-th>
@@ -28,13 +28,13 @@
 						<uni-th width="160" align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr  v-for="(item, index) in stationList" :key="index" >
-						<uni-td>{{ item.name }}</uni-td>
+						<uni-td align="center">{{ item.name }}</uni-td>
 		
 						<uni-td align="center">{{ item.code }}</uni-td>
 						<uni-td align="center">{{ item.location }}</uni-td>
 						<uni-td align="center">{{humansData.find(user => user.id === item.adminUserId).username }}</uni-td>
 						
-						<uni-td align="center">{{ item.stationType==1?'工厂':'仓库' }}</uni-td>
+						<uni-td align="center">{{ item.stationType==1?'工厂':'村庄' }}</uni-td>
 						
 						<uni-td >
 						
@@ -135,7 +135,7 @@ let station=this
 					'update':false
 				},//判断是否弹窗输入框可用
 				searchKeyword:'',
-				stype:[{id:'1',name:'工厂'},{id:'2',name:'仓库'}],
+				stype:[{id:'1',name:'工厂'},{id:'2',name:'村庄'}],
 				//页面传参
 				globalOption: {},
 				//自定义全局变量

@@ -27,20 +27,20 @@
 			<view class="uni-container">
 				<uni-table  ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
-						<uni-th width="50" align="center">派单号</uni-th>
+						<uni-th width="65" align="center">派单号</uni-th>
 						<uni-th width="50" align="center">派单员</uni-th>
-						<uni-th  align="center">操作员</uni-th>
-						<uni-th width="50" align="center">状态</uni-th>
-						<uni-th width="150" align="center">设置</uni-th>
+						<uni-th width="60" align="center">操作员</uni-th>
+						<uni-th width="65" align="center">状态</uni-th>
+						<uni-th width="100" align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr   v-for="(item, index) in orderList" :key="index" >
-						<uni-td>{{ item.id }}</uni-td>
-						<uni-td>
+						<uni-td  align="center">{{ item.id }}</uni-td>
+						<uni-td  align="center">
 							<view class="name">{{ humansData.find(x=>x.id==item.dispatcherId).username }}</view>
 						</uni-td>
 						<uni-td align="center">{{ humansData.find(x=>x.id==item.operatorId).username }}</uni-td>
 						<uni-td align="center">{{ OrderStatus.find(x=>x.id==item.status).name }}</uni-td>
-						<uni-td >
+						<uni-td align="center" >
 						<button style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickDetailFunction(item,'detail')">详情</button>
 					<button :disabled="isCurrentApproval(item)" v-if="isApproval" style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickApproval(item)">审批</button>
 						<button type="warn"  v-if="isDispatch" size="mini" @click="onDelete('one',item)" >删除</button>
@@ -257,7 +257,7 @@
 			            @click="handleValidate(step)">
 			            校验
 			          </button> -->
-			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://182.92.76.31:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
+			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://118.31.245.112:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
 			
 			          <uni-file-picker 
 					 :disabled="step.sort>curStep"
@@ -445,7 +445,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  { id: 9, name: '已确认', type: 'success' },
 				  { id: 10, name: '已完成', type: 'success' },
 				],
-				switchList : [{ id: 1, name: '闸刀1' }, { id: 2, name: '闸刀2' }, { id: 3, name: '闸刀3' }]
+				switchList : [{ id: 1, name: '闸刀1' }, { id: 2, name: '闸刀2' }, { id: 3, name: '闸刀3' }],
 				reviewerList:[],
 				approvalList:[],
 				operatorList:[],
@@ -675,7 +675,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				getImg('20250207121400_1738901637543.jpg').then(res=>{
 					// let datas = res.data;
 					// this.imageData =  '/f/20250207121400_1738901637543.jpg'
-					this.imageData='http://182.92.76.31:8800/uploads/20250207121400_1738901637543.jpg'
+					this.imageData='http://118.31.245.112:8800/uploads/20250207121400_1738901637543.jpg'
 				  // const base64 = uni.arrayBufferToBase64(res.data);
 				  //   this.imageData = `data:image/jpeg;base64,${base64}`;
 					console.log('imgres', res)
@@ -868,7 +868,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 			  upload  (filename, file) {
 				  let thiz=this
 			    return uni.uploadFile({
-			      url: 'http://182.92.76.31:8800/f/' + filename,  // 上传的 URL
+			      url: 'http://118.31.245.112:8800/f/' + filename,  // 上传的 URL
 			      // file: file,         // 选择的文件路径
 			  
 			  	header:{

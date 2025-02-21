@@ -72,19 +72,37 @@
 				hdp: {
 					rows: [
 						{
-							id: 2,
-							title: '测试幻灯2',
+							id: 1,
+							title: '幻灯1',
 							sort: 2,
-							img: 'http://YourWebsite.cn/storage/20230105/ea111afc34ef0377f0aff93089acda39.jpg',
+							img: '/static/guangfu1.png',
 							createTime: '2023-01-05 21:48:32',
 							updateTime: '2023-01-05 21:48:32',
 							deleteTime: null
 						},
 						{
-							id: 1,
-							title: ' 测试幻灯3',
+							id: 2,
+							title: '幻灯2',
+							sort: 2,
+							img: '/static/guangfu2.png',
+							createTime: '2023-01-05 21:48:32',
+							updateTime: '2023-01-05 21:48:32',
+							deleteTime: null
+						},
+						{
+							id: 3,
+							title: ' 幻灯3',
 							sort: 3,
-							img: 'https://mjke.oss-cn-shenzhen.aliyuncs.com/0b4d5202212060953199408.jpg',
+							img: '/static/guangfu3.png',
+							createTime: '2023-01-05 20:58:26',
+							updateTime: '2023-01-05 21:46:36',
+							deleteTime: null
+						},
+						{
+							id: 4,
+							title: ' 幻灯4',
+							sort: 3,
+							img: '/static/guangfu4.png',
 							createTime: '2023-01-05 20:58:26',
 							updateTime: '2023-01-05 21:46:36',
 							deleteTime: null

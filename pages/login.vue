@@ -118,7 +118,7 @@ import { login,getUserInfo ,refreshToken } from '../api/user.js';
 				this.captchaUrl=`/api/auth/captcha?${Date.now()}`
 			}else{
 				
-				this.captchaUrl=`http://182.92.76.31:8800/auth/captcha?${Date.now()}`
+				this.captchaUrl=`http://118.31.245.112:8800/auth/captcha?${Date.now()}`
 				
 			}
 			  // 2. 进行 getUserInfo 调用

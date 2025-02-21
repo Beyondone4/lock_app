@@ -20,9 +20,9 @@
 			<view class="uni-container">
 				<uni-table v-if="stationList && stationList.length > 0" ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
-						<uni-th width="50" align="center">锁具ID</uni-th>
-						<uni-th width="50" align="center">锁具名称</uni-th>
-						<uni-th width="50" align="center">锁具SN</uni-th>
+						<uni-th width="50" align="center">ID</uni-th>
+						<uni-th width="50" align="center">名称</uni-th>
+						<uni-th width="50" align="center">SN</uni-th>
 						<uni-th  align="center">锁具MAC</uni-th>
 						<uni-th  align="center">锁具位置</uni-th>
 						<uni-th  align="center">电量</uni-th>
@@ -31,7 +31,7 @@
 						<uni-th width="160" align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr  v-for="(item, index) in lockList" :key="index" >
-						<uni-td>{{ item.id }}</uni-td>
+						<uni-td align="center">{{ item.id }}</uni-td>
 		<uni-td align="center">{{ item.name }}</uni-td>
 						<uni-td align="center">{{ item.sn }}</uni-td>
 						<uni-td align="center">{{ item.mac }}</uni-td>
@@ -174,7 +174,7 @@ import store from '@/store/index.js';
 					'update':false
 				},//判断是否弹窗输入框可用
 				searchKeyword:'',
-				stype:[{id:'1',name:'工厂'},{id:'2',name:'仓库'}],
+				stype:[{id:'1',name:'工厂'},{id:'2',name:'村庄'}],
 				//页面传参
 				globalOption: {},
 				//自定义全局变量

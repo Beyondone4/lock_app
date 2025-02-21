@@ -114,7 +114,7 @@
             "proxy" : {
                 /**配置服务器路径**/
                 "/api" : {
-                    "target" : "http://ak8413jn4768.vicp.fun:80", // 目标服务器
+                    "target" : "http://118.31.245.112:8800", // 目标服务器
                     "changeOrigin" : true,
                     /**重写路径**/
                     "pathRewrite" : {

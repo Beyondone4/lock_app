@@ -16,18 +16,18 @@
 				<uni-table ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据"
 					@selection-change="selectionChange">
 					<uni-tr>
-						<uni-th width="50" align="center">工号</uni-th>
+						<uni-th width="55" align="center">工号</uni-th>
 						<uni-th width="50" align="center">姓名</uni-th>
-						<uni-th align="center">联系方式</uni-th>
-						<uni-th width="180" align="center">设置</uni-th>
+						<uni-th  align="center">联系方式</uni-th>
+						<uni-th  width='120' align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr v-for="(item, index) in humansData" :key="index">
-						<uni-td>{{ item.id }}</uni-td>
-						<uni-td>
+						<uni-td align="center">{{ item.id }}</uni-td>
+						<uni-td align="center">
 							<view class="name">{{ item.username }}</view>
 						</uni-td>
 						<uni-td align="center">{{ item.email }}</uni-td>
-						<uni-td>
+						<uni-td align="center">
 							<button style="margin-right: 5rpx;" type="primary" size="mini" class="green"
 								@click="clickDetailFunction(item,'detail')">详情</button>
 							<button type="primary" size="mini" @click="clickDetailFunction(item,'update')">修改</button>
