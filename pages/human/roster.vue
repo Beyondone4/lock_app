@@ -1,26 +1,26 @@
 <template>
 	<view class="container container15293">
-		<u-form :model="form" :rules="formRules" :errorType="['message', 'toast']" ref="formRef" class="flex diygw-form diygw-col-24">
+		<u-form :model="profile" :rules="formRules" :errorType="['message', 'toast']" ref="formRef" class="flex diygw-form diygw-col-24">
 
 			
-			<u-form-item class="diygw-col-24" :required="true" label="用户名" prop="name">
-				<u-input :focus="formData.nameFocus" class="" placeholder="请输入提示信息" v-model="userInfo.username" type="text"></u-input>
+			<u-form-item class="diygw-col-24" :required="true" label="昵称" prop="name">
+				<u-input :focus="formData.nameFocus" class="" placeholder="请输入提示信息" v-model="profile.nickName" type="text"></u-input>
 			</u-form-item>
-			<u-form-item :required="true"  class="diygw-col-24" label="密码" prop="idWorker">
+	<!-- 		<u-form-item :required="true"  class="diygw-col-24" label="密码" prop="idWorker">
 				<u-input  @click="formData.showIdWorker = true" class="" placeholder="*********" v-model="form.idWorkerLabel" type="text"></u-input>
-			</u-form-item>
+			</u-form-item> -->
 		<!-- 	<u-form-item class="diygw-col-24" label="性别" :required="true" prop="checkinTime">
 				<u-input @click="formData.showCheckinTime = true" class="" placeholder="请选择" v-model="form.checkinTime" type="select"></u-input>
 			</u-form-item> -->
 			<!-- <u-select mode="single-column" valueName="id" labelName="name" :list="educationData.rows" :defaultValue="[form.idEduIndex]" v-model="formData.showIdEdu" @confirm="changeFormIdEdu"></u-select>
 	 -->
 			<u-form-item class="diygw-col-24" :required="true" label="手机" prop="phone">
-				<u-input :focus="formData.phoneFocus" class="" placeholder="请输入手机号" v-model="profile.phone" type="text"></u-input>
+				<u-input :focus="formData.phoneFocus" class="" placeholder="请输入手机号" v-model="profile.phone" type="number"></u-input>
 			</u-form-item>
-			<u-form-item :required="true" class="diygw-col-24" label="邮箱" prop="email">
+			<u-form-item  class="diygw-col-24" label="邮箱" prop="email">
 				<u-input @click="formData.showIdEdu = true" class="" placeholder="请输入" v-model="profile.email" type="text"></u-input>
 			</u-form-item>
-			<u-form-item :required="true" class="diygw-col-24" label="地址" prop="address">
+			<u-form-item  class="diygw-col-24" label="地址" prop="address">
 				<u-input @click="formData.showIdEdu = true" class="" placeholder="请输入地址" v-model="profile.address" type="text"></u-input>
 			</u-form-item>
 			
@@ -42,6 +42,7 @@
 </template>
 
 <script>
+	import {updateProfile,getUserInfo} from '../../api/user.js'
 	export default {
 		data() {
 			return {
@@ -101,13 +102,7 @@
 					msg: ''
 				},
 				formRules: {
-					idProject: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请选择项目'
-						}
-					],
+		
 					name: [
 						{
 							trigger: ['change', 'blur'],
@@ -115,13 +110,7 @@
 							message: '请输入姓名'
 						}
 					],
-					idWorker: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请选择工种'
-						}
-					],
+	
 					cardNum: [
 						{
 							trigger: ['change', 'blur'],
@@ -134,13 +123,7 @@
 							message: '请填写身份证号'
 						}
 					],
-					checkinTime: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请选择报到日期'
-						}
-					],
+			
 					phone: [
 						{
 							type: 'number',
@@ -154,77 +137,14 @@
 							pattern: /^1[3-9]\d{9}$/
 						}
 					],
-					idEdu: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请选择学历'
-						}
-					],
-					bankNum: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请输入银行卡号'
-						}
-					],
-					bankAddress: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请填写收款银行卡开户行支行信息'
-						}
-					],
-					illness: [
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请选择是否有基础病症状'
-						}
-					],
-					rzsm: [
-						{
-							trigger: ['change', 'blur'],
-							message: '请输入“本人已了解工作规范与法律责任”',
-							validator: (rule, val, callback) => {
-								if (val && val.indexOf('法律责任') >= 0) {
-									return true;
-								} else {
-									return false;
-								}
-							}
-						},
-						{
-							trigger: ['change', 'blur'],
-							required: true,
-							message: '请输入“本人已了解工作规范与法律责任”'
-						}
-					]
+					
+			
 				},
 				form: {
-					idProjectIndex: -1,
-					idProject: '',
-					idProjectLabel: '',
-					name: '',
-					idWorkerIndex: -1,
-					idWorker: '',
-					idWorkerLabel: '',
-					cardNum: '',
-					cardImg: '',
-					cardImgb: '',
-					checkinTime: '',
-					phone: '',
-					idEduIndex: -1,
-					idEdu: '',
-					idEduLabel: '',
-					eduImg: '',
-					certificatesImg: '',
-					bankNum: '',
-					bankImg: '',
-					bankAddress: '',
-					bustPhotos: '',
-					illness: '',
-					rzsm: ''
+				phone:'',
+				email:'',
+				nickName:'',
+				address:''
 				},
 				formData: {
 					showIdProject: false,
@@ -278,22 +198,65 @@
 			this.userInfo	=await uni.getStorageSync('user')
 	
 			this.profile=this.userInfo.profile
-			if(!this.profile.phone){
-				this.userInfo.profile.phone=''
-			}
-			if(!this.profile.email){
-				this.userInfo.profile.email=''
-			}
-			if(!this.profile.address){
-				this.userInfo.profile.address=''
-			}
+			this.form
+			console.log('this.profile',this.profile)
+			
 			console.log('user',uni.getStorageSync('user').profile)
 				await this.projectDataApi();
 				await this.workerDataApi();
 				await this.educationDataApi();
 			},
-
-
+		async submitForm(){
+			console.log(this.profile)
+	
+		    let sf={
+				address:this.profile.address,
+				phone:this.profile.phone,
+				email:this.profile.email,
+				nickName:this.profile.nickName,
+				gender:this.profile.gender,
+				id:this.profile.id
+			}
+			updateProfile(sf,this.profile.id).then(res=>{
+				console.log(res)
+				if(res.data.code===0){
+					uni.showToast({
+						title: '修改成功',
+						icon: 'none',
+						duration: 6000,
+					})
+					
+					this.refreshUserInfo()
+					this.$forceUpdate();
+					     setTimeout(() => {
+					        // 如果需要刷新页面，可以在返回前重新加载页面数据或直接调用页面刷新方法
+					        uni.navigateBack({
+					          delta: 1
+					        })
+					      }, 600)
+				}
+				else{
+					uni.showToast({
+						title: '修改失败',
+						icon: 'none',
+						duration: 1000,
+					})
+				}
+			}
+			)
+		
+			
+			// updateProfile()
+			
+		},
+async  refreshUserInfo() {
+    await getUserInfo().then(res=>{
+	  console.log('newuser',res)
+	   uni.setStorageSync('user',res.data.data)
+  })
+  this.userInfo=uni.getStorageSync('user')
+  this.profile=this.userInfo.profile
+},
 	
 		}
 	};

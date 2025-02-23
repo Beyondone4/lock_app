@@ -12,7 +12,7 @@
 		  </image>
 <view style="display: flex; align-items: center; padding: 20px; background-color: #ffffff; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin: 15px 0;">
   <image 
-    :src="'http://118.31.245.112:8800'+userInfo.profile.avatar" 
+    :src="userInfo.profile.avatar" 
     style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #e0e0e0; margin-right: 20px;" 
     mode="widthFix">
   </image>
@@ -30,6 +30,10 @@
 		<view class="flex diygw-col-24">
 			<button @tap="navigateTo" data-type="page" data-url="/pages/human/roster"
 				class="diygw-btn blue radius-xs flex-sub margin-xs button-button-clz">修改信息</button>
+		</view>
+		<view class="flex diygw-col-24">
+			<button @tap="navigateTo" data-type="openmodal" data-id="resetPW"
+				class="diygw-btn blue radius-xs flex-sub margin-xs button-button-clz">修改密码</button>
 		</view>
 		<view class="flex diygw-col-24">
 			<button @tap="navigateTo" data-type="clearUserInfoFunction"
@@ -79,13 +83,39 @@
 				</view>
 			</view>
 		</view>
+		<view class="diygw-modal basic" :class="resetPW" style="z-index: 1000000">
+			<view style="padding: 20rpx;" class="diygw-dialog diygw-dialog-consumed basis-lg">
+				<view class="justify-end diygw-bar">
+					<view class="content"> 修改密码 </view>
+					<view class="action" data-type="closemodal" data-id="resetPW" @tap="navigateTo">
+						<i class="diy-icon-close"></i>
+					</view>
+				</view>
+				<view>
+					<uni-forms-item name="onePassword" label="新密码">
+						<uni-easyinput type="text" v-model="updatePW.onePassword" />
+					</uni-forms-item>
+					<uni-forms-item name="twoPassword" label="确认密码">
+						<uni-easyinput type="text" v-model="updatePW.twoPassword" />
+					</uni-forms-item>
+				</view>
+				<view class="flex justify-end">
+					<button @tap="navigateTo" data-type="updatePassword" 
+						class="diygw-btn green flex1 margin-xs">确认</button>
+					<button data-type="closemodal" @tap="navigateTo" data-id="resetPW"
+						class="diygw-btn red flex1 margin-xs">取消</button>
+				</view>
+			</view>
+		</view>
 		<view class="clearfix"></view>
 	</view>
 </template>
 
 <script>
 	import {
-		getUserInfo
+		changePassword,
+		getUserInfo,
+		updateUser
 	} from '../api/user';
 	export default {
 		data() {
@@ -95,7 +125,12 @@
 					0: '女'
 				},
 				detail: '',
+				resetPW:'',
 				//用户全局信息
+				updatePW:{
+					onePassword:'',
+					twoPassword:''
+				},
 				userInfo: {
 					id: 1,
 
@@ -136,6 +171,7 @@
 		},
 		onShow() {
 			this.setCurrentPage(this);
+			this.init();
 		},
 		onLoad(option) {
 			this.setCurrentPage(this);
@@ -151,6 +187,36 @@
 			openDetail() {
 				console.log('this.userInfo', this.userInfo)
 				this.showDetail=true
+			},
+			updatePassword(){
+				if(this.updatePW.onePassword!=this.updatePW.twoPassword){
+					uni.showToast({
+						icon:'error',
+						title:'两次密码不一样'
+					})
+					return 
+				}
+				updateUser({password:this.updatePW.twoPassword,id:this.userInfo.id},this.userInfo.id).then(res=>{
+					if(res.data.code===0){
+						uni.showToast({
+							
+							title:'修改成功'
+						})
+					}
+						
+					else{
+						uni.showToast({
+							icon:'error',
+							title:'修改失败'
+						})
+						return 
+					}
+					this.navigateTo({
+						type: 'closemodal',
+						id: 'resetPW'
+					});
+					console.log('changepw',res)
+				})
 			},
 			async init() {
 				let data = {}

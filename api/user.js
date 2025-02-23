@@ -135,6 +135,21 @@ export const addUser = (params={}) => {
  	        params: params
  })
 }
+
+export const updateProfile = (params={},id) => {
+ return 	request({
+ 			method: 'PATCH',
+ 	        url: '/user/profile/'+id,
+ 	        params: params
+ })
+}
+export const changePassword = (params={}) => {
+ return 	request({
+ 			method: 'POST',
+ 	        url: '/auth/password',
+ 	        params: params
+ })
+}
 export const addLock = (params={}) => {
  return 	request({
  			method: 'POST',
@@ -148,11 +163,18 @@ export const getImg = (name) => {
  	        url: '/uploads/'+name,
  })
 }
-export const resetPwd = (data,id) => {
+export const resetPwd = (params={},id) => {
  return 	request({
  			method: 'PATCH',
  	        url: '/user/password/reset/'+id,
  	        data: data
+ })
+}
+export const updateUser = (params={},id) => {
+ return 	request({
+ 			method: 'PATCH',
+ 	        url: '/user/'+id,
+ 	        params: params
  })
 }
 export const updateLock = (params={},id) => {

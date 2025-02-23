@@ -2,8 +2,8 @@
     "name" : "五防锁",
     "appid" : "__UNI__B660C6C",
     "description" : "",
-    "versionName" : "1.0.3",
-    "versionCode" : 103,
+    "versionName" : "1.0.5",
+    "versionCode" : 105,
     "transformPx" : false,
     "app-plus" : {
         "usingComponents" : true,

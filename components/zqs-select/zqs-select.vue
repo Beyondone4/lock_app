@@ -7,7 +7,7 @@
         :placeholder="placeholder"
         placeholder-style="color: rgba(102, 102, 102, 0.25);"
         placeholder-class="zqs-select-placeholder-class"
-        disabled
+        
       />
       <image
         v-if="showArrow && !_value"

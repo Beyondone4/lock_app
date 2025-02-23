@@ -18,7 +18,7 @@
 					<uni-tr>
 						<uni-th width="55" align="center">工号</uni-th>
 						<uni-th width="50" align="center">姓名</uni-th>
-						<uni-th  align="center">联系方式</uni-th>
+						<uni-th  align="center">联系电话</uni-th>
 						<uni-th  width='120' align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr v-for="(item, index) in humansData" :key="index">
@@ -26,11 +26,11 @@
 						<uni-td align="center">
 							<view class="name">{{ item.username }}</view>
 						</uni-td>
-						<uni-td align="center">{{ item.email }}</uni-td>
+						<uni-td align="center">{{ item.phone }}</uni-td>
 						<uni-td align="center">
 							<button style="margin-right: 5rpx;" type="primary" size="mini" class="green"
 								@click="clickDetailFunction(item,'detail')">详情</button>
-							<button type="primary" size="mini" @click="clickDetailFunction(item,'update')">修改</button>
+							<button type="primary" size="mini" @click="openRoleSet(item)">分配角色</button>
 						<button style="margin-right: 5rpx; color: black;" type="primary" size="mini" data-type="openmodal" @tap="navigateTo" data-id="reset"
 							class="yellow">重置密码</button>
 							<button type="warn" @tap="clickOpendelete(item)"  size="mini">删除</button>
@@ -54,10 +54,10 @@
 					<view style="padding: 20rpx;">
 						<uni-forms :model="this.selectedItem">
 							<uni-forms-item label="姓名" name="name">
-								<uni-easyinput type="text" v-model="selectedItem.username"
+								<uni-easyinput type="text" v-model="selectedItem.nickName"
 									:disabled='this.inputDisabled[this.currentModal]' />
 							</uni-forms-item>
-							<uni-forms-item name="phone" label="联系方式">
+							<uni-forms-item name="phone" label="联系电话">
 								<uni-easyinput type="text" v-model="selectedItem.phone"
 									:disabled='this.inputDisabled[this.currentModal]' />
 							</uni-forms-item>
@@ -65,10 +65,10 @@
 								<uni-easyinput type="text" v-model="selectedItem.email"
 									:disabled='this.inputDisabled[this.currentModal]' />
 							</uni-forms-item>
-							<uni-forms-item name="gender" label="权限">
+<!-- 							<uni-forms-item name="gender" label="权限">
 								<uni-easyinput type="text" v-model="selectedItem.roles[0].name"
 									:disabled='this.inputDisabled[this.currentModal]' />
-							</uni-forms-item>
+							</uni-forms-item> -->
 							<uni-forms-item name="gender" label="性别">
 								<uni-easyinput type="text" v-model="gender[selectedItem.gender]"
 									:disabled='this.inputDisabled[this.currentModal]' />
@@ -79,7 +79,7 @@
 
 				<view class="flex justify-end">
 		
-					<button v-if="this.currentModal=='update'" data-type="closemodal" @tap="navigateTo" data-id="detail"
+					<button v-if="this.currentModal=='update'"  @tap="updateSelectUser(selectedItem)" 
 						class="diygw-btn red flex1 margin-xs">保存</button>
 					<button data-type="closemodal" @tap="navigateTo" data-id="detail"
 						class="diygw-btn red flex1 margin-xs">关闭</button>
@@ -131,6 +131,44 @@
 							class="diygw-btn blue flex1 margin-xs">重置权限</button>
 					<button data-type="closemodal" @tap="navigateTo" data-id="create"
 						class="diygw-btn red flex1 margin-xs">关闭</button>
+				</view>
+			</view>
+		</view>
+		<view class="diygw-modal basic" :class="roleSet" style="z-index: 1000000">
+			<view class="diygw-dialog diygw-dialog-consumed basis-lg">
+				<view class="justify-end diygw-bar">
+					<view class="content"> 分配角色 </view>
+					<view class="action" data-type="closemodal" data-id="roleSet" @tap="navigateTo">
+						<i class="diy-icon-close"></i>
+					</view>
+				</view>
+				<view>
+					<view style="padding: 20rpx;" class="flex diygw-dialog-content">
+						<uni-forms ref="addForm" :rules="addRules" :model="this.selectedItem">
+							<uni-forms-item required label="用户名" name="username">
+								<uni-easyinput type="text" disabled="true" v-model="selectedItem.username" placeholder="请输入用户名"
+									 />
+							</uni-forms-item>	
+							<uni-forms-item required name="roles" label="权限" >
+							<zqs-select
+							  :multiple="false"
+							  :list="this.roles"
+							  :showSearch="false"
+							  label-key="name"
+							  value-key="id"
+							  title="选择权限"
+							  clearable
+							  v-model="selectedItem.roles[0].id"
+							></zqs-select>
+							</uni-forms-item>
+						</uni-forms>
+					</view>
+				</view>
+				<view class="flex justify-end">
+					<button @tap="navigateTo" data-type="clickSetRole" 
+						class="diygw-btn green flex1 margin-xs">确认</button>
+					<button data-type="closemodal" @tap="navigateTo" data-id="roleSet"
+						class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
 		</view>
@@ -186,7 +224,8 @@
 		getUserList,
 		getAllroles,
 		addUser,
-		deleteUsers
+		deleteUsers,
+		updateUser
 	} from '../../api/user.js'
 	export default {
 		data() {
@@ -266,8 +305,8 @@
 				},
 				gender:{
 					1:'男',
-					0:'女',
-					undefined:'未知'
+					2:'女',
+					0:'未知'
 				},
 				clickRseIntoData: {
 					code: 500,
@@ -281,7 +320,8 @@
 				deleted: '',
 				detail: '',
 				create:'',
-				reset:''
+				reset:'',
+				roleSet:''
 			};
 		},
 		computed: {
@@ -313,6 +353,24 @@
 					id: 'deleted'
 				});
 			},
+			openRoleSet(item){
+				this.selectedItem=item
+				console.log('updateitem',item)
+				this.navigateTo({
+					type: 'openmodal',
+					id: 'roleSet'
+				});
+			},
+			clickSetRole(){
+				updateUser({roleIds:[this.selectedItem.roles[0].id],id:this.selectedItem.id,username:this.selectedItem.username},this.selectedItem.id).then(res=>{
+					console.log(res)
+				}
+				)
+				this.navigateTo({
+					type: 'closemodal',
+					id: 'roleSet'
+				});
+			},
 			clickDeleteUser(){
 			
 				let ids=[this.selectedItem.id]
@@ -331,6 +389,10 @@
 				    uni.redirectTo({
 				      url: '/' + currentRoute
 				    });
+			},
+			updateSelectUser(item){
+				console.log(item)
+				
 			},
 			clickAddUser(){
 				this.addItem={

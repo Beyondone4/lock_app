@@ -106,12 +106,12 @@
 						<button  @tap="stepsPop"  class="diygw-btn red flex1 margin-xs">删除步骤</button>
 						</uni-forms-item>
 				<uni-form-item>
-					<uni-steps :options="orderStepList" ></uni-steps>
+					<uni-steps :options="stepTasks" :active="stepTasks.length-1" ></uni-steps>
 				</uni-form-item>
 		</uni-forms>
 				<view class="flex justify-end">
 					<button @tap="handleSave"   class="diygw-btn green flex1 margin-xs">确认</button>
-					<button  @click="resetAdd"  class="diygw-btn red flex1 margin-xs">重置表单</button>
+					<button  @click="resetAdd"  class="diygw-btn red flex1 margin-xs">重置步骤</button>
 					<button data-type="closemodal" @tap="navigateTo" data-id="add" class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
@@ -183,7 +183,7 @@
 				<view class="flex justify-end">
 					<button @tap="navigateTo" data-type="clickAddStep"  class="diygw-btn green flex1 margin-xs">确认</button>
 					<button @tap="()=>{orderstep={}}"  class="diygw-btn green flex1 margin-xs">重置</button>
-					<button data-type="closemodal" @tap="navigateTo" data-id="detail" class="diygw-btn red flex1 margin-xs">取消</button>
+					<button data-type="closemodal" @tap="navigateTo" data-id="oderStepsModal" class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
 		</view>
@@ -445,7 +445,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				  { id: 9, name: '已确认', type: 'success' },
 				  { id: 10, name: '已完成', type: 'success' },
 				],
-				switchList : [{ id: 1, name: '闸刀1' }, { id: 2, name: '闸刀2' }, { id: 3, name: '闸刀3' }],
+				switchList : [{ id: '1', name: '闸刀1' }, { id: '2', name: '闸刀2' }, { id: '3', name: '闸刀3' }],
 				reviewerList:[],
 				approvalList:[],
 				operatorList:[],
@@ -477,7 +477,9 @@ import bluetooth from '../../mixins/bluetooth.js'
 				selectedItem:{},
 				queryItems:{},
 				addItem:{},
-				orderData:{},//表单数据
+				orderData:{
+					
+				},//表单数据
 				operatorId:null,
 				lockId:null,
 				task:null,
@@ -510,6 +512,13 @@ import bluetooth from '../../mixins/bluetooth.js'
 					{id:3,name:'上传图片'},
 					{id:4,name:'状态量'}
 				],
+				stepTitles:[
+					{title:'开锁'},
+					{title:'关锁'},
+					{title:'上传图片'},
+					{title:'状态量'}
+				],
+				stepTasks:[],
 				ableReview:false,
 				review:'',
 				returned: '',
@@ -945,6 +954,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 		            },
 			stepsPop(){
 				this.orderStepList.pop()
+				this.stepTasks.pop()
 				this.orderSteps=	this.orderStepList.map((item,index)=>{
 						return {
 							orderId:0,
@@ -1103,7 +1113,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 		
 		  // 如果通过验证，继续执行添加步骤
 		  this.orderStepList.push(this.orderstep);
-		  
+		  this.stepTasks.push(this.stepTitles[this.orderstep.task-1])
 		  this.orderSteps = this.orderStepList.map((item, index) => {
 		    return {
 		      orderId: 0,
@@ -1123,11 +1133,11 @@ import bluetooth from '../../mixins/bluetooth.js'
 		},
 
 			resetAdd(){
-				this.orderData.stationId=null
-				this.orderData.operatorId=null
-				this.stationId=null
-				this.checkApprovalList=[]
-				this.operatorId=null
+		
+				this.orderSteps=[]
+				this.stepTasks=[]
+				this.orderStepList=[]
+			
 			},
 			onAdd(){
 				console.log('触发新增按钮')
@@ -1203,6 +1213,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				
 			async clickAddFunction(){
 				this.orderStepList=[]
+				this.stepTasks=[]
 				if(this.reviewerList.length===0||this.approvalListlength===0||this.operatorListlength===0){
 				
 						this.reviewerList =this.humansData.filter(item => item.roles[0].id === 2)
@@ -1306,6 +1317,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 	  this.orderData = {};
 	  this.orderApprovals = [];
 	  this.orderStepList = [];
+	  this.stepTasks=[];
 	  this.orderSteps = [];
 	  this.orderstep = {};
 	  this.checkApprovalList = [];
