@@ -43,46 +43,7 @@
 			<button @tap="navigateTo" data-type="page" data-url="/pages/index"
 				class="diygw-btn green radius-xs diygw-shadow flex-sub margin-lg button1-button-clz">返回首页</button>
 		</view>
-		<view v-if='showDetail'  style=" z-index: 1000000">
-			<view class="diygw-dialog diygw-dialog-return basis-lg">
-				<view class="justify-end diygw-bar">
-					<view class="content"> 修改信息 </view>
-					<view class="action" data-type="closemodal" data-id="detail" @tap="navigateTo">
-						<i class="diy-icon-close"></i>
-					</view>
-				</view>
-				<view>
-					<view style="padding: 20rpx;">
-						<uni-forms :modelValue="userInfo">
-							<uni-forms-item label="姓名" name="name">
-								<uni-easyinput type="text" v-model="userInfo.profile.username" />
-							</uni-forms-item>
-							<uni-forms-item name="phone" label="联系方式">
-								<uni-easyinput type="text" v-model="userInfo.profile.phone" />
-							</uni-forms-item>
-							<uni-forms-item name="email" label="邮箱">
-								<uni-easyinput type="text" v-model="userInfo.profile.email" />
-							</uni-forms-item>
-							<uni-forms-item name="gender" label="权限">
-								<uni-easyinput type="text" v-model="userInfo.roles[0].name" />
-							</uni-forms-item>
-							<!-- 				<uni-forms-item name="gender" label="性别">
-								<uni-easyinput type="text" v-model="gender[selectedItem.gender]"
-									:disabled='this.inputDisabled[this.currentModal]' />
-							</uni-forms-item> -->
-						</uni-forms>
-					</view>
-				</view>
 
-				<view class="flex justify-end">
-
-					<button data-type="closemodal" @tap="navigateTo" data-id="detail"
-						class="diygw-btn red flex1 margin-xs">保存</button>
-					<button data-type="closemodal" @tap="navigateTo" data-id="detail"
-						class="diygw-btn red flex1 margin-xs">关闭</button>
-				</view>
-			</view>
-		</view>
 		<view class="diygw-modal basic" :class="resetPW" style="z-index: 1000000">
 			<view style="padding: 20rpx;" class="diygw-dialog diygw-dialog-consumed basis-lg">
 				<view class="justify-end diygw-bar">

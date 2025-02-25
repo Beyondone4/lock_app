@@ -55,8 +55,14 @@
 
 			</view>
 		</view>
+		
+		
 		<view class="clearfix"></view>
+		<view style="display: flex; flex-direction: column;  justify-content: flex-end; align-items: center;"  >
+			<image  mode="widthFix" src="@/static/logo.png"  ></image>
+		</view>
 	</view>
+	
 </template>
 
 <script>

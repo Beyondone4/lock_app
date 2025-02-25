@@ -30,8 +30,10 @@
 						<uni-th width="65" align="center">派单号</uni-th>
 						<uni-th width="50" align="center">派单员</uni-th>
 						<uni-th width="60" align="center">操作员</uni-th>
+						<uni-th  align="center">审批员</uni-th>
+						<uni-th width="60" align="center">站点</uni-th>
 						<uni-th width="65" align="center">状态</uni-th>
-						<uni-th width="100" align="center">设置</uni-th>
+						<uni-th  align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr   v-for="(item, index) in orderList" :key="index" >
 						<uni-td  align="center">{{ item.id }}</uni-td>
@@ -39,6 +41,11 @@
 							<view class="name">{{ humansData.find(x=>x.id==item.dispatcherId).username }}</view>
 						</uni-td>
 						<uni-td align="center">{{ humansData.find(x=>x.id==item.operatorId).username }}</uni-td>
+						<uni-td align="center">{{ item.orderApprovals.map((x) => {
+        const adminUser = humansData.find(user => user.id === x.approverId)
+        return adminUser ? adminUser.username : '未知'
+      }).join('、') }}</uni-td>
+						<uni-td align="center">{{ stationList.find(x=>x.id==item.stationId).name }}</uni-td>
 						<uni-td align="center">{{ OrderStatus.find(x=>x.id==item.status).name }}</uni-td>
 						<uni-td align="center" >
 						<button style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickDetailFunction(item,'detail')">详情</button>
@@ -151,11 +158,11 @@
 					  v-model="orderstep.lockId"
 					></zqs-select>
 				</uni-forms-item>
-		<uni-forms-item v-if="orderstep.task===3"   label="步骤备注" name="name">
+		<uni-forms-item v-if="orderstep.task>=3"   label="步骤备注" name="name">
 				<uni-easyinput placeholder="可默认留空" type="text" v-model="orderstep.comment"
 					 />
 		</uni-forms-item>
-		<uni-forms-item  v-if="orderstep.task===4"  label="指定刀闸" name="name">
+<!-- 		<uni-forms-item  v-if="orderstep.task===4"  label="指定刀闸" name="name">
 				<zqs-select
 				  :multiple="false"
 				  :list="this.switchList"
@@ -166,7 +173,7 @@
 				  clearable
 				  v-model="orderstep.switchId"
 				></zqs-select>
-			</uni-forms-item>
+			</uni-forms-item> -->
 			<uni-forms-item v-if="orderstep.task>=2"   label="指定审核员" name="name">
 						<zqs-select
 						  :multiple="false"
@@ -191,7 +198,7 @@
 			<view class="diygw-dialog diygw-dialog-consumed basis-lg">
 				<view class="justify-end diygw-bar">
 					<view class="content"> 工单详情 </view>
-					<view class="action" data-type="closemodal" data-id="detail" @tap="navigateTo">
+					<view class="action"  @tap="closeDetail">
 						<i class="diy-icon-close"></i>
 					</view>
 				</view>
@@ -229,8 +236,11 @@
 					            <p v-if="step.task === 1">
 					              锁SN码: {{ lockList.find(lock => lock.id === step.lockId).sn }}
 					            </p>
-								<p v-if="step.task === 3">
+								<p v-if="step.task >= 3">
 								  步骤备注: {{ step.comment }}
+								</p>
+								<p v-if="step.task >= 3">
+								  审核员: {{ humansData.find(x=>x.id===step.reviewerId).username }}
 								</p>
 
 			          <button 
@@ -274,18 +284,18 @@
 					  
 					  <view style="padding: 10rpx; margin-top: 10rpx;" v-if="step.task === 4 " >
 					    <!-- 审批意见的标签 -->
-					    <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
+					  <!--  <text style="font-size: 18px; color: #444; font-weight: bold; display: block; margin-bottom: 8px;">
 					      填写状态量
-					    </text>
+					    </text> -->
 					    <!-- 输入框 -->
 						
-					    <uni-easyinput 
+					<!--    <uni-easyinput 
 					 :disabled="step.sort> curStep"
 					      type="text" 
 					  	placeholder="填写状态量"
 					      v-model="step.comment" 
 					      style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; font-size: 16px; width: 100%;" 
-					    />
+					    /> -->
 					  </view>
 					 
 		<!-- 	          <button 
@@ -323,7 +333,7 @@
 					
 				<view class="flex justify-end">
 					<button :disabled="(selectedItem.status===8&&isOp)?false:true" @tap="clickConfirm"  class="diygw-btn green flex1 margin-xs">提交工单</button>
-					<button data-type="closemodal" @tap="navigateTo" data-id="detail" class="diygw-btn red flex1 margin-xs">取消</button>
+					<button  @tap="closeDetail"  class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
 		</view>
@@ -423,6 +433,7 @@
 
 <script>
 import {uploadimg,getUserList,getLockList,getStationList,createOrder,getOrderList,deleteOrders, approveOrder,getLockCmd, stepOrder, getImg, updateLock, updateOrder} from '../../api/user.js'
+import { getData } from '../../common/Page.js';
 
 import bluetooth from '../../mixins/bluetooth.js'
 	export default {
@@ -448,6 +459,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				switchList : [{ id: '1', name: '闸刀1' }, { id: '2', name: '闸刀2' }, { id: '3', name: '闸刀3' }],
 				reviewerList:[],
 				approvalList:[],
+				timer:null,
 				operatorList:[],
 				extraIcon: {
 						color: '#4cd964',
@@ -584,6 +596,17 @@ import bluetooth from '../../mixins/bluetooth.js'
 		onShow() {
 			this.setCurrentPage(this);
 		},
+		// 组件加载时启动定时器
+		mounted() {
+		 
+	
+		},
+		destroyed() {
+		 	 clearInterval(this.timer)
+		  
+		},
+		// 组件卸载时清除定时器
+		
 		onLoad(option) {
 			this.setCurrentPage(this);
 			if (option) {
@@ -615,8 +638,25 @@ import bluetooth from '../../mixins/bluetooth.js'
 			}
 	
 			this.init();
+			this.timer = setInterval(() => {
+			  console.log('xxxxxxxxxxxxxxx')
+			  if(this.selectedItem){
+				  		this.getData(this.pageCurrent?this.pageCurrent:1)
+			  }
+					
+						//将当前的
+			}, 10000) // 每 5 秒请求一次
+	
 		},
 		methods: {
+			closeDetail(){
+			
+				this.navigateTo({
+					type: 'closemodal',
+					id: 'detail'
+				})
+				this.selectedItem={}
+			},
 			async toSubmit(){
 				await updateOrder({id:this.selectedItem.id,status:10},this.selectedItem.id).then(res=>{
 					console.log(res)
@@ -982,8 +1022,8 @@ import bluetooth from '../../mixins/bluetooth.js'
 			this.selectedIndexs = e.detail.index
 		},
 		getData(index){
-				 getOrderList({pageNo:index}).then(res=>{
-					console.log(res)
+				 getOrderList({pageNo:index,all:1}).then(res=>{
+					
 					if(res.data.code==10002){
 						uni.clearStorageSync()
 						this.navigateTo({
@@ -992,6 +1032,11 @@ import bluetooth from '../../mixins/bluetooth.js'
 						});
 					}
 					this.orderList=res.data.data.pageData
+					if(this.selectedItem){
+					this.selectedItem=	res.data.data.pageData.find(item=>item.id===this.selectedItem.id)
+					console.log(this.selectedItem)
+					}
+					
 				
 				})
 			},
@@ -1246,7 +1291,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				this.globalData.storeflowid = 0;
 				
 				thiz.globalData.storeflowid = param.id;
-			
+	
 				//打开弹窗
 				thiz.navigateTo({
 					type: 'openmodal',
