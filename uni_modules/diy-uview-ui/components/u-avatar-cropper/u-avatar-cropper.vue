@@ -164,7 +164,7 @@ export default {
 		uni.chooseImage({
 			count: 1, // 默认9
 			sizeType: ['compressed'], // 可以指定是原图还是压缩图，默认二者都有
-			sourceType: ['album', 'camera'], // 可以指定来源是相册还是相机，默认二者都有
+			sourceType: ['camera'], // 可以指定来源是相册还是相机，默认二者都有
 			success: res => {
 				this.src = res.tempFilePaths[0];
 				//  获取裁剪图片资源后，给data添加src属性及其值
@@ -216,7 +216,7 @@ export default {
 			uni.chooseImage({
 				count: 1, // 默认9
 				sizeType: ['original', 'compressed'], // 可以指定是原图还是压缩图，默认二者都有
-				sourceType: ['album', 'camera'], // 可以指定来源是相册还是相机，默认二者都有
+				sourceType: ['camera'], // 可以指定来源是相册还是相机，默认二者都有
 				success: (res) => {
 					self.src = res.tempFilePaths[0];
 					//  获取裁剪图片资源后，给data添加src属性及其值

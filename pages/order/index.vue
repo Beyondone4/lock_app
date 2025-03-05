@@ -25,28 +25,28 @@
 		  </view> -->
 		</view>
 			<view class="uni-container">
-				<uni-table  ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
+				<uni-table    ref="table" :loading="loading"  border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
 						<uni-th width="65" align="center">派单号</uni-th>
 						<uni-th width="50" align="center">派单员</uni-th>
 						<uni-th width="60" align="center">操作员</uni-th>
 						<uni-th  align="center">审批员</uni-th>
-						<uni-th width="60" align="center">站点</uni-th>
+						<uni-th width="90" align="center">站点</uni-th>
 						<uni-th width="65" align="center">状态</uni-th>
 						<uni-th  align="center">设置</uni-th>
 					</uni-tr>
 					<uni-tr   v-for="(item, index) in orderList" :key="index" >
 						<uni-td  align="center">{{ item.id }}</uni-td>
 						<uni-td  align="center">
-							<view class="name">{{ humansData.find(x=>x.id==item.dispatcherId).username }}</view>
+							<view class="name">{{ (humansData.find(x=>x.id==item.dispatcherId)||{}).username }}</view>
 						</uni-td>
-						<uni-td align="center">{{ humansData.find(x=>x.id==item.operatorId).username }}</uni-td>
+						<uni-td align="center">{{ (humansData.find(x=>x.id==item.operatorId)||{}).username }}</uni-td>
 						<uni-td align="center">{{ item.orderApprovals.map((x) => {
         const adminUser = humansData.find(user => user.id === x.approverId)
         return adminUser ? adminUser.username : '未知'
       }).join('、') }}</uni-td>
-						<uni-td align="center">{{ stationList.find(x=>x.id==item.stationId).name }}</uni-td>
-						<uni-td align="center">{{ OrderStatus.find(x=>x.id==item.status).name }}</uni-td>
+						<uni-td align="center">{{ (stationList.find(x => x.id == item.stationId) || {}).name }}</uni-td>
+						<uni-td align="center">{{ (OrderStatus.find(x => x.id == item.status) || {}).name }}</uni-td>
 						<uni-td align="center" >
 						<button style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickDetailFunction(item,'detail')">详情</button>
 					<button :disabled="isCurrentApproval(item)" v-if="isApproval" style="margin-right: 5rpx;" type="primary" size="mini"   @click="clickApproval(item)">审批</button>
@@ -131,7 +131,7 @@
 						<i class="diy-icon-close"></i>
 					</view>
 				</view>
-		<uni-forms :modelValue="this.addItem" style="padding: 18rpx;">
+		<uni-forms :modelValue="orderstep" style="padding: 18rpx;">
 			<uni-forms-item required  label="任务" name="name">
 					<zqs-select
 					  :multiple="false"
@@ -149,9 +149,9 @@
 			<uni-forms-item  v-if="orderstep.task<2"  label="指定锁具" name="name">
 					<zqs-select
 					  :multiple="false"
-					  :list="this.lockList"
+					  :list="lockList.filter(lock => lock.stationId === orderData.stationId)"
 					  :showSearch="false"
-					  label-key="sn"
+					  label-key="name"
 					  value-key="id"
 					  title="选择锁具"
 					  clearable
@@ -267,7 +267,7 @@
 			            @click="handleValidate(step)">
 			            校验
 			          </button> -->
-			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://118.31.245.112:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
+			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://182.92.76.31:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
 			
 			          <uni-file-picker 
 					 :disabled="step.sort>curStep"
@@ -277,6 +277,7 @@
 			          	mode="grid" 
 						limit="1"
 						:auto-upload="false"
+					
 						
 			          	@select="select" 
 			
@@ -332,7 +333,7 @@
 		
 					
 				<view class="flex justify-end">
-					<button :disabled="(selectedItem.status===8&&isOp)?false:true" @tap="clickConfirm"  class="diygw-btn green flex1 margin-xs">提交工单</button>
+					<button :disabled="(selectedItem.status===8&&isOp)?false:true" v-if="isOp" @tap="clickConfirm"  class="diygw-btn green flex1 margin-xs">提交工单</button>
 					<button  @tap="closeDetail"  class="diygw-btn red flex1 margin-xs">取消</button>
 				</view>
 			</view>
@@ -468,6 +469,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 					},
 				userid:null,
 				FilePaths:[],
+				loading:true,
 				orderSteps:[],
 				orderApprovals:[],
 				userInfo: {},
@@ -512,6 +514,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 							pageCurrent: 1,
 							// 数据总量
 							total: 4,
+				userRole:null,
 				checkboxValue1:[],
 				isAll:{
 					value:'all',
@@ -607,7 +610,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 		},
 		// 组件卸载时清除定时器
 		
-		onLoad(option) {
+	 	onLoad(option) {
 			this.setCurrentPage(this);
 			if (option) {
 				this.setData({
@@ -617,6 +620,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 		this.userInfo=uni.getStorageSync('user')
 		this.userid=this.userInfo.id
 		console.log('userid',this.userInfo.roles[0].id)
+		this.userRole=this.userInfo.roles[0].id
 			if(this.userInfo.roles[0].id===1){
 				this.queryItems.all=1
 			}
@@ -638,19 +642,26 @@ import bluetooth from '../../mixins/bluetooth.js'
 			}
 	
 			this.init();
-			this.timer = setInterval(() => {
+			this.timer = setInterval(async() => {
 			  console.log('xxxxxxxxxxxxxxx')
-			  if(this.selectedItem){
-				  		this.getData(this.pageCurrent?this.pageCurrent:1)
-			  }
+					
+				if(this.selectedItem){
+					this.loading=true
+					await this.getData(this.pageCurrent)
+					this.loading=false
+				}
+		
+				  		
+			
 					
 						//将当前的
 			}, 10000) // 每 5 秒请求一次
+
 	
 		},
 		methods: {
 			closeDetail(){
-			
+				
 				this.navigateTo({
 					type: 'closemodal',
 					id: 'detail'
@@ -724,7 +735,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				getImg('20250207121400_1738901637543.jpg').then(res=>{
 					// let datas = res.data;
 					// this.imageData =  '/f/20250207121400_1738901637543.jpg'
-					this.imageData='http://118.31.245.112:8800/uploads/20250207121400_1738901637543.jpg'
+					this.imageData='http://182.92.76.31:8800/uploads/20250207121400_1738901637543.jpg'
 				  // const base64 = uni.arrayBufferToBase64(res.data);
 				  //   this.imageData = `data:image/jpeg;base64,${base64}`;
 					console.log('imgres', res)
@@ -917,7 +928,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 			  upload  (filename, file) {
 				  let thiz=this
 			    return uni.uploadFile({
-			      url: 'http://118.31.245.112:8800/f/' + filename,  // 上传的 URL
+			      url: 'http://182.92.76.31:8800/f/' + filename,  // 上传的 URL
 			      // file: file,         // 选择的文件路径
 			  
 			  	header:{
@@ -1021,8 +1032,12 @@ import bluetooth from '../../mixins/bluetooth.js'
 			console.log(e.detail.index)
 			this.selectedIndexs = e.detail.index
 		},
-		getData(index){
-				 getOrderList({pageNo:index,all:1}).then(res=>{
+		async getData(index){
+			
+			console.log('index',index)
+			if(this.userRole===1){
+				this.queryItems.all=1
+				getOrderList({pageNo:index,all:1}).then(res=>{
 					
 					if(res.data.code==10002){
 						uni.clearStorageSync()
@@ -1032,22 +1047,97 @@ import bluetooth from '../../mixins/bluetooth.js'
 						});
 					}
 					this.orderList=res.data.data.pageData
-					if(this.selectedItem){
-					this.selectedItem=	res.data.data.pageData.find(item=>item.id===this.selectedItem.id)
-					console.log(this.selectedItem)
-					}
+				
 					
 				
 				})
+			}
+			if(this.userRole===2){
+		
+				getOrderList({pageNo:index,all:1,reviewerId:this.userid}).then(res=>{
+					
+					if(res.data.code==10002){
+						uni.clearStorageSync()
+						this.navigateTo({
+						  type: 'page',
+						  url: 'login'
+						});
+					}
+					this.orderList=res.data.data.pageData
+					
+					
+				
+				})
+			}
+			if(this.userRole===5){
+			
+				getOrderList({pageNo:index,all:1,approvalId:this.userid}).then(res=>{
+					
+					if(res.data.code==10002){
+						uni.clearStorageSync()
+						this.navigateTo({
+						  type: 'page',
+						  url: 'login'
+						});
+					}
+					this.orderList=res.data.data.pageData
+				
+					
+				
+				})
+			}
+			if(this.userRole===6){
+			
+				getOrderList({pageNo:index,all:1,dispatcherId:this.userid}).then(res=>{
+					
+					if(res.data.code==10002){
+						uni.clearStorageSync()
+						this.navigateTo({
+						  type: 'page',
+						  url: 'login'
+						});
+					}
+					this.orderList=res.data.data.pageData
+					// if(this.selectedItem){
+					// this.selectedItem=	res.data.data.pageData.find(item=>item.id===this.selectedItem.id)
+					// console.log(this.selectedItem)
+					// }
+					
+				
+				})
+			}
+			if(this.userRole===9){
+			
+				getOrderList({pageNo:index,all:1,operatorId:this.userid}).then(res=>{
+					
+					if(res.data.code==10002){
+						uni.clearStorageSync()
+						this.navigateTo({
+						  type: 'page',
+						  url: 'login'
+						});
+					}
+					this.orderList=res.data.data.pageData
+				
+					
+				
+				})
+			}
+	
 			},
 				
 					// 分页触发
-					change(e) {
+					async change(e) {
+						
 						this.$refs.table.clearSelection()
 						this.selectedIndexs.length = 0
-						this.getData(e.current)
+						this.pageCurrent=e.current
+						this.loading=true
+						await this.getData(e.current)
+						this.loading=false
 					},
 			async init() {
+				
 		      let res= await getUserList({pageNo:-1})
 			  this.humansData =res.data.data.pageData
 			console.log('human',this.humansData)
@@ -1091,6 +1181,8 @@ import bluetooth from '../../mixins/bluetooth.js'
 					this.lockList=res.data.data.pageData
 					console.log("xxxxxxxxx",this.lockList)
 				});
+				
+				this.loading=false
 			},
 			async onDelete(type,item={}){
 				if(type=='batch'){
@@ -1291,7 +1383,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				this.globalData.storeflowid = 0;
 				
 				thiz.globalData.storeflowid = param.id;
-	
+		
 				//打开弹窗
 				thiz.navigateTo({
 					type: 'openmodal',

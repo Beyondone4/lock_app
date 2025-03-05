@@ -183,7 +183,7 @@
 			sourceType: {
 				type: Array,
 				default () {
-					return  ['album', 'camera']
+					return  ['camera']
 				}
 			},
 			provider: {

@@ -18,7 +18,7 @@
 		  </view>
 		</view>
 			<view class="uni-container">
-				<uni-table v-if="stationList && stationList.length > 0" ref="table" :loading="loading" border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
+				<uni-table v-if="stationList && stationList.length > 0" ref="table"  border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
 						<uni-th width="50" align="center">ID</uni-th>
 						<uni-th width="50" align="center">名称</uni-th>
@@ -166,6 +166,7 @@ import store from '@/store/index.js';
 				chooseType:null,
 				//用户全局信息
 				currentUser:{},
+				deleteLock:{},
 				userInfo: {},
 				currentModal:'',//当前弹窗
 				currentModalTitle:'',//当前弹窗标题
@@ -444,20 +445,69 @@ import store from '@/store/index.js';
 						
 						})
 					}else{
-						console.log(item)
-						await deleteLocks({ids:[item.id]}).then(res=>{
-							console.log('xxxxxxxxxx',res)
-							if(res.data.code==10002){
-								uni.clearStorageSync()
-								this.navigateTo({
-								  type: 'page',
-								  url: 'login'
-								});
-							}
+						let ins = [];
+						// 根据 step.lockId 在 lockList 中查找对应的锁信息
+						// console.log('locki', this.lockList);
+						let curlock = item
+						this.currentLock=curlock
+						if (!curlock) {
+						  uni.showToast({
+						    title: '未找到对应锁的信息',
+						    icon: 'none',
+						    duration: 2000
+						  });
+						  return;
+						}
 						
-						
-						})
-						
+						// 蓝牙模块中，扫描到的设备，其 deviceId（去掉冒号并转为小写）作为 mac 值
+						let targetMac = curlock.mac.toLowerCase();
+						// console.log('targetMac',curlock)
+						// 触发蓝牙扫描（内部会调用 openBluetoothAdapter、getBluetoothAdapterState、findBluetooth 等）
+						 this.openBluetoothAdapter();
+						// console.log('devices',this.devices)
+						// 等待6秒，确保扫描结果已经更新到 this.devices 中
+						setTimeout(async () => {
+						  // 在扫描到的设备数组（this.devices）中查找与 targetMac 匹配的设备
+						  const device = this.devices.find(dev => {
+						    const devMac = dev.deviceId.replace(/:/g, '').toLowerCase();
+						    return devMac === targetMac;
+						  });
+						  
+						  // console.log('rollz', this.roll);
+						  // console.log('device',device)
+						  if (device) {
+						   
+						    // 调用蓝牙连接方法
+										  // console.log('device',device)
+							this.device=device
+						    this.connectBluetoothDevice(device);
+						    
+						    // 增加等待时间（例如 3 秒），让连接有足够时间完成
+						    await new Promise(resolve => setTimeout(resolve, 6000));
+						    
+						    console.log('蓝牙设备已连接, roll:', this.roll);
+						    
+						  // 发送开锁指令（类型 0x01）
+						  await getLockCmd({ id: this.currentLock.id, roll: this.roll, type: 0x1F })
+						    .then(res => {
+											let ins1F=[]
+						      // console.log(res);
+						      ins1F.push(res.data.data['cmd']);
+											// ins1.push('0100000dc1020101e1b219020800241ac6')
+											this.sendUnlockInstruct1(ins1F);
+						    });
+								
+										
+									
+						  } else {
+						    // 未找到设备给出提示
+						    uni.showToast({
+						      title: '未找到对应的蓝牙设备，请确认设备是否已开启',
+						      icon: 'none',
+						      duration: 2000
+						    });
+						  }
+						}, 6000);
 					}
 				
 						this.init()
@@ -610,6 +660,9 @@ import store from '@/store/index.js';
 					type: 'openmodal',
 					id: 'returned'
 				});
+			},
+			async handleDeletelock(step) {
+				
 			},
 
 			// 点击消耗按钮触发 自定义方法

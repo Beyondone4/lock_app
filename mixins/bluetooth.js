@@ -563,10 +563,22 @@ export default {
 		},
 
 		// 获取指令
-		getLockInstruct() {
+	async	getLockInstruct() {
 			// _type: 1 读取门锁信息 2初始化锁 3开锁
-			const orders = ['01000D00C1010101E1B2190205171613C5', '1F040D00141dfcf97feb77809d4886650023b903']
-			const order = ['1F040D00C1010101E1B2190205170A0CD4']; //
+			const orders = []
+			//如果是已经存在的锁链接
+			if(this.currentLock){
+				await getLockCmd({ id: this.currentLock.id, roll: this.roll, type: 0x01 })
+				  .then(res => {
+										
+				    // console.log(res);
+				    orders.push(res.data.data['cmd']);
+				  });
+			}
+			//如果是新锁 连接时候发送01
+			else{
+				lock.GenerateCommand(0x01, this.roll, 'C1:12:13:14:15:16')
+			}
 			console.log('10this.deviceId', this.deviceId)
 			if (!this.deviceId) return uni.$u.toast('请先连接蓝牙锁')
 			try {
@@ -576,7 +588,7 @@ export default {
 
 				// 发送指令
 				// lock.sendInstruct(order,lock.unLockType);
-				lock.sendUnlockInstruct1(orders, lock.unLockType)
+				lock.sendUnlockInstruct1(orders)
 				uni.hideLoading();
 			} catch (e) {
 				uni.hideLoading();
