@@ -1,7 +1,8 @@
 import {
 	getLockCmd,
 	updateLock,
-	stepOrder
+	stepOrder,
+	MupdateLock,
 } from '../api/user'
 import store from '@/store/index.js';
 import {
@@ -12,6 +13,8 @@ let lock = null
 export default {
 	data() {
 		return {
+			hasShownConnectSuccess: false, // 新增：是否已显示过连接成功提示
+			servicesInitialized: false, // 新增：标记服务和特征值是否已初始化
 			curkey:'',
 			unLockType: 0, //1蓝牙开锁、2网关开锁
 			list: [], // 已搜索到的蓝牙设备
@@ -30,6 +33,7 @@ export default {
 			roll: 0,
 			baseDataFromB: {},
 			someDataFromB: {},
+			deviceDebug:{},
 		}
 	},
 	created() {
@@ -242,17 +246,26 @@ export default {
 		},
 		//优化buffer
 		hexStringToBuffer(hexString) {
-			const cleanedHexString = hexString.toLowerCase().replace(/[^0-9a-f]/g, '');
-			// 计算字节数
-			const length = cleanedHexString.length / 2;
-			// 创建一个新的 ArrayBuffer
-			const buffer = new ArrayBuffer(length);
-			const view = new Uint8Array(buffer);
-			// 每两个字符转换为一个字节，并写入 ArrayBuffer
-			for (let i = 0; i < length; i++) {
-				view[i] = parseInt(cleanedHexString.substr(i * 2, 2), 16);
+			try {
+				const cleanedHexString = hexString.toLowerCase().replace(/[^0-9a-f]/g, '');
+				if (cleanedHexString.length % 2 !== 0) {
+					uni.$u.toast('十六进制字符串长度必须为偶数');
+					return new ArrayBuffer(0);
+				}
+				// 计算字节数
+				const length = cleanedHexString.length / 2;
+				// 创建一个新的 ArrayBuffer
+				const buffer = new ArrayBuffer(length);
+				const view = new Uint8Array(buffer);
+				// 每两个字符转换为一个字节，并写入 ArrayBuffer
+				for (let i = 0; i < length; i++) {
+					view[i] = parseInt(cleanedHexString.substr(i * 2, 2), 16);
+				}
+				return buffer;
+			} catch (error) {
+				uni.$u.toast('处理十六进制字符串失败: ' + error.message);
+				return new ArrayBuffer(0);
 			}
-			return buffer;
 		},
 
 		// 生成buffer
@@ -273,16 +286,26 @@ export default {
 		},
 		// 是否是目标设备（可根据你的实际项目做改动）
 		isTargetDevice(advertisData, targetName) {
-			const extractedName = advertisData.slice(12, 26);
-			return extractedName.toLowerCase() === targetName.toLowerCase();
+			try {
+				if (!advertisData || advertisData.length < 26) {
+					return false;
+				}
+				const extractedName = advertisData.slice(12, 26);
+				return extractedName.toLowerCase() === targetName.toLowerCase();
+			} catch (error) {
+				console.error('设备匹配错误:', error);
+				return false;
+			}
 		},
 
 		// 初始化蓝牙
 		openBluetoothAdapter() {
 			this.unLockType = 1;
-			this.roll = 0
+			
+			if (this.logDebug) this.logDebug('开始初始化蓝牙适配器');
 			uni.openBluetoothAdapter({
 				success(res) {
+					if (lock.logDebug) lock.logDebug('蓝牙适配器初始化成功');
 					lock.isConnect = false
 					lock.isLock = false
 					lock.getBluetoothAdapterState();
@@ -290,6 +313,7 @@ export default {
 				fail(e) {
 					uni.hideLoading();
 					lock.unLockType = 0;
+					if (lock.logDebug) lock.logDebug('蓝牙适配器初始化失败', e);
 					if (e.errCode !== 0) {
 						initTypes(e.errCode, e.errMsg);
 					}
@@ -301,115 +325,180 @@ export default {
 			uni.getBluetoothAdapterState({
 				success: res => {
 					console.log('获取本机蓝牙适配器状态', JSON.stringify(res));
+					if (this.logDebug) this.logDebug('获取本机蓝牙适配器状态', res);
 					lock.adapterState = res;
 					uni.onBLEConnectionStateChange(this.bleConnectionStateChangeHandler);
 					lock.findBluetooth()
 				},
 				fail: e => {
 					this.unLockType = 0;
+					if (this.logDebug) this.logDebug('获取蓝牙适配器状态失败', e);
 					if (e.errCode !== 0) {
 						initTypes(e.errCode);
 					}
 				}
 			});
 		},
-	bleConnectionStateChangeHandler(res) {			 
-		console.log(`device ${res.deviceId} state has changed, connected: ${res.connected}`)
-					if (res.connected) {
-						uni.setBLEMTU({ deviceId: res.deviceId, mtu: 512 })}},
+		bleConnectionStateChangeHandler(res) {			 
+			console.log(`device ${res.deviceId} state has changed, connected: ${res.connected}`)
+			if (lock.logDebug) lock.logDebug(`设备 ${res.deviceId} 连接状态变化`, res.connected ? '已连接' : '已断开');
+			if (res.connected) {
+				// 连接成功
+			} else {
+				// 连接断开，重置服务初始化状态
+				this.servicesInitialized = false;
+			}
+		},
 		
 		// 开始搜寻附近的蓝牙
 		findBluetooth() {
-			uni.showLoading({
-				title: lock.loadingText,
-				mask: true
-			});
+			// uni.showLoading({
+			// 	title: lock.loadingText,
+			// 	mask: true
+			// });
 			uni.startBluetoothDevicesDiscovery({
 				success(res) {
 					// 开启监听回调
 					uni.onBluetoothDeviceFound(lock.watchNewBluetooth)
 					lock.locktimer = setTimeout(() => {
-						uni.showToast({
-							title: '',
-							icon: 'none',
-							duration: 1000,
-							complete: function() {
-								uni.stopBluetoothDevicesDiscovery()
-							}
-						});
-					}, 1000 * 6)
+						if (lock.devices.length === 0) {
+							uni.$u.toast('未找到匹配的蓝牙锁设备');
+						} else {
+							uni.showToast({
+								title: '搜寻到设备',
+								icon: 'none',
+								duration: 1000,
+								complete: function() {
+									uni.stopBluetoothDevicesDiscovery()
+								}
+							});
+						}
+					}, 1000 * 3)
 				},
 				fail(e) {
 					uni.hideLoading();
 					if (e.errCode !== 0) {
-						initTypes(e.errCode);
+						initTypes(e.errCode, e.errMsg);
+					} else {
+						uni.$u.toast('搜索蓝牙设备失败: ' + e.errMsg);
 					}
 				}
 			})
 		},
 		//监听附近设备
 		watchNewBluetooth(res) {
-			res.devices.forEach(device => {
-				let x = this.ab2hex(device.advertisData || new ArrayBuffer(0));
-				if (this.isTargetDevice(x, '626c654c6f636b')) {
-					let mac = device.deviceId.replace(/:/g, '');
-					console.log('发现符合条件的设备:', device, 'MAC:', mac);
-					uni.hideLoading();
-					if (!this.devices.find(d => d.deviceId === device.deviceId)) {
-						this.devices.push({
-							name: device.name || '未知名称',
-							deviceId: device.deviceId,
-							advertisServiceUUIDs: device.advertisServiceUUIDs || []
-						});
-					}
+			try {
+				if (!res || !res.devices || !Array.isArray(res.devices)) {
+					return;
 				}
-			});
-		},
-		// 用户点击列表中的“连接”按钮时调用
-		connectBluetoothDevice(device) {
-			uni.stopBluetoothDevicesDiscovery(); // 可选：停止搜索
-
-			this.isConnect = false;
-			this.isLock = false;
-			this.deviceId = device.deviceId.toString();
-			this.serviceId = device.advertisServiceUUIDs[0] || '';
-			console.log('serviceId', this.serviceId)
-			this.lockname = device.name.toString();
-			this.baseDataFromB = {
-				mac: this.deviceId.replace(/:/g, ''),
-				sn: this.lockname,
-				factoryId: this.lockname,
-				factoryKey: '7856341201efbc9a89674523efdecdab',
-				currentKey: '7856341201efbc9a89674523efdecdab'
+				
+				res.devices.forEach(device => {
+					try {
+						if (!device.advertisData) {
+							return;
+						}
+						let x = this.ab2hex(device.advertisData || new ArrayBuffer(0));
+						if (this.isTargetDevice(x, '626c654c6f636b')) {
+							let mac = device.deviceId.replace(/:/g, '');
+							console.log('发现符合条件的设备:', device, 'MAC:', mac);
+														// // 保存设备信息到debug对象
+														// this.deviceDebug = {
+														// 	name: device.name || '未知名称',
+														// 	deviceId: device.deviceId,
+														// 	advertisServiceUUIDs: device.advertisServiceUUIDs || [],
+														// 	mac: mac,
+														// 	advertisData: x
+														// };
+														// // 显示设备信息
+														// uni.$u.toast('设备信息：' + JSON.stringify(this.deviceDebug));
+							uni.hideLoading();
+							if (!this.devices.find(d => d.deviceId === device.deviceId)) {
+								this.devices.push({
+									name: device.name || '未知名称',
+									deviceId: device.deviceId,
+									advertisServiceUUIDs: device.advertisServiceUUIDs || []
+								});
+							}
+						}
+					} catch (deviceError) {
+						console.error('处理设备数据错误:', deviceError);
+					}
+				});
+			} catch (error) {
+				console.error('监听蓝牙设备发现错误:', error);
+				uni.$u.toast('监听蓝牙设备发现错误');
 			}
-			// 如果要向上个页面传值，可以使用 eventChannel
-			// this.getOpenerEventChannel().emit('LockBaseInfo', {
-			//   mac: this.deviceId.replace(/:/g, ''),
-			//   sn: this.lockname,
-			//   ...
-			// });
+		},
+		// 用户点击列表中的"连接"按钮时调用
+		connectBluetoothDevice(device) {
+			try {
+				 // 重置连接成功提示标志
+				 this.hasShownConnectSuccess = false;
+				if (!device || !device.deviceId) {
+					uni.$u.toast('设备信息不完整');
+					return;
+				}
+				uni.stopBluetoothDevicesDiscovery(); // 可选：停止搜索
+				this.roll = 0
+				this.isConnect = false;
+				this.isLock = false;
+				this.deviceId = device.deviceId.toString();
+			
+				// if (!device.advertisServiceUUIDs || device.advertisServiceUUIDs.length === 0) {
+				// 	uni.$u.toast('设备服务UUID不存在');
+				// 	return;
+				// }
 
-			// 开始连接
-			this.createBLEConnection();
+				this.lockname = device.name ? device.name.toString() : '未知设备';
+				this.baseDataFromB = {
+					mac: this.deviceId.replace(/:/g, ''),
+					sn: this.lockname,
+					factoryId: this.lockname,
+					factoryKey: '123456789abcef0123456789abcddeef',
+					currentKey: '123456789abcef0123456789abcddeef'
+				}
+				
+				// 开始连接
+				this.createBLEConnection();
+			} catch (error) {
+				console.error('连接设备错误:', error);
+				uni.$u.toast('连接设备错误: ' + error.message);
+			}
 		},
 		// 连接蓝牙
 		createBLEConnection() {
+			if (this.logDebug) this.logDebug('开始连接蓝牙设备', lock.deviceId);
 			uni.createBLEConnection({
 				deviceId: lock.deviceId,
 				timeout: 1000 * 60,
 				success(res) {
 					// 需要延迟
+					if (lock.logDebug) lock.logDebug('蓝牙连接成功，准备获取服务');
 					setTimeout(() => {
 						// 知道服务和特征值，直接监听
 						// lock.notifyBLECharacteristicValueChange()
 						// 获取服务，再获取特征值，这里写死，就不用再获取
-						// lock.getServices()
-						lock.getCharacteristics() // 获取特征值
-					}, 2000)
+						
+						uni.setBLEMTU({
+							deviceId: lock.deviceId,
+							 mtu: 512,
+							success: function(e) {
+							 			console.log("设置蓝牙最大传输单元成功",lock.deviceId)
+										if (lock.logDebug) lock.logDebug("设置蓝牙MTU成功", e);
+							 		},
+							fail: function(ree) {
+							 			console.log("设置蓝牙最大传输单元失败失败")
+										if (lock.logDebug) lock.logDebug("设置蓝牙MTU失败", ree);
+							 		}
+						 })
+						 lock.getServices()
+						// lock.getCharacteristics() // 获取特征值
+					}, 3000)
 					// 关闭搜索 
 				},
 				fail(e) {
 					uni.hideLoading();
+					if (lock.logDebug) lock.logDebug('蓝牙连接失败', e);
 					if (e.errCode !== 0) {
 						initTypes(e.errCode);
 					} else {
@@ -420,179 +509,305 @@ export default {
 		},
 		// 获取蓝牙服务
 		getServices() {
-			uni.getBLEDeviceServices({
-				deviceId: lock.deviceId,
-				success(res) {
-					lock.serviceId = res.services ? res.services[0]['uuid'] : '';
-					// lock.serviceId='0000ff01-0000-1000-8000-00805f9b34fb'//这里返回设备服务uuid
-					lock.getCharacteristics();
-				},
-				fail(err) {
-					uni.$u.toast('连接蓝牙服务失败，请重试！')
-					uni.hideLoading();
-				}
+			return new Promise((resolve, reject) => {
+				this.getBLEDeviceServices('FFF0', lock.deviceId)
+					.then(async services => {
+						console.log("getBLEDeviceServices=", services)
+						lock.serviceId = services.serviceId;
+						await new Promise(resolve => setTimeout(resolve, 1000));
+						await lock.getCharacteristics();
+						// 标记服务和特征值已初始化
+						lock.servicesInitialized = true;
+						resolve(services);
+					})
+					.catch(err => {
+						uni.$u.toast('连接蓝牙服务失败，请重试！')
+						uni.hideLoading();
+						lock.servicesInitialized = false;
+						reject(err);
+					});
+			});
+		},
+		
+		// 获取蓝牙设备服务
+		getBLEDeviceServices(serviceUUID = 'FFF0', deviceId) {
+			console.log('获取指定蓝牙设备所有服务', 'serviceUUID=',serviceUUID, 'deviceId=', deviceId)
+			return new Promise((resolve, reject) => {
+				const tryGetServices = (attempt = 1, maxAttempts = 3) => {
+					uni.getBLEDeviceServices({
+						deviceId: deviceId,
+						success: function (res) {
+							console.log("getBLEDeviceServices=", res)
+							const services = {
+								serviceId: null
+							}
+							// 检查是否有服务返回
+							if (res.services && res.services.length > 0) {
+								// 查找主服务，并且UUID包含FFF0
+								res.services.forEach((item) => {
+									if (item.isPrimary && item.uuid.indexOf(serviceUUID) != -1) {
+										services.serviceId = item.uuid
+									}
+								})
+							}
+							
+							// 如果找不到服务且尚未达到最大尝试次数，则重试
+							if (!services.serviceId && attempt < maxAttempts) {
+								console.log(`未找到服务，${attempt}/${maxAttempts}次尝试，等待后重试...`);
+								setTimeout(() => tryGetServices(attempt + 1, maxAttempts), 1500);
+							} else if (!services.serviceId) {
+								reject(new Error('未找到目标服务'));
+							} else {
+								resolve(services);
+							}
+						},
+						fail: function(err) {
+							if (attempt < maxAttempts) {
+								console.log(`获取服务失败，${attempt}/${maxAttempts}次尝试，等待后重试...`);
+								setTimeout(() => tryGetServices(attempt + 1, maxAttempts), 1500);
+							} else {
+								reject(err);
+							}
+						}
+					})
+				};
+				
+				tryGetServices();
 			})
 		},
 		// 获取特征值
 		getCharacteristics() {
-			uni.getBLEDeviceCharacteristics({
-				deviceId: lock.deviceId, // 设备ID C10101010C1A
-				serviceId: lock.serviceId, // 服务UUID
-				success(res) {
-					console.log('获取特征值', res);
-					lock.characteristicId = res.characteristics || [];
-					lock.notifyBLECharacteristicValueChange()
-					lock.onBLECharacteristicValueChange(lock.unLockType); // 指令发送成功后监听数据回传
-					let x = {
-						'deviceId': lock.deviceId,
-						'serviceId': lock.serviceId,
-						'characteristicId': lock.characteristicId
+			return new Promise((resolve, reject) => {
+				console.log('正在获取特征值，设备ID:', lock.deviceId, '服务ID:', lock.serviceId);
+				uni.getBLEDeviceCharacteristics({
+					deviceId: lock.deviceId, // 设备ID C10101010C1A
+					serviceId: lock.serviceId, // 服务UUID
+					success(res) {
+						console.log('获取特征值成功，返回数据:', JSON.stringify(res));
+						if (!res.characteristics || res.characteristics.length === 0) {
+							uni.$u.toast('未找到设备特征值');
+							uni.hideLoading();
+							lock.servicesInitialized = false;
+							reject(new Error('未找到设备特征值'));
+							return;
+						}
+						
+						lock.characteristicId = res.characteristics || [];
+						lock.notifyBLECharacteristicValueChange();
+						lock.onBLECharacteristicValueChange(); // 指令发送成功后监听数据回传
+						let x = {
+							'deviceId': lock.deviceId,
+							'serviceId': lock.serviceId,
+							'characteristicId': lock.characteristicId
+						}
+						// store.dispatch('updateLock', x)
+						lock.loadingText = '解析设备中，请稍后...';
+						resolve(res);
+					},
+					fail(err) {
+						uni.hideLoading();
+						console.error('获取特征值失败，设备ID:', lock.deviceId, '服务ID:', lock.serviceId, '错误信息:', JSON.stringify(err));
+						uni.$u.toast('连接蓝牙特征失败，请重试！\n设备ID: ' + lock.deviceId + '\n服务ID: ' + lock.serviceId);
+						lock.servicesInitialized = false;
+						reject(err);
 					}
-					store.dispatch('updateLock', x)
-					lock.loadingText = '蓝牙开锁中，请稍后...';
-				},
-				fail(err) {
-					uni.$u.toast('连接蓝牙特征失败，请重试！')
-				}
-			})
+				})
+			});
 		},
 		// 开启监听 
 		notifyBLECharacteristicValueChange() {
+			if (this.logDebug) this.logDebug('开始启用特征值变化通知', {
+				deviceId: lock.deviceId,
+				serviceId: lock.serviceId,
+				characteristicId: lock.characteristicId ? lock.characteristicId[1]['uuid'] : ''
+			});
+			
 			uni.notifyBLECharacteristicValueChange({
-				deviceId: lock.deviceId, // 设备id
-				serviceId: lock.serviceId, // 监听指定的服务
-				characteristicId: lock.characteristicId ? lock.characteristicId[1]['uuid'] : '', // 监听对应的特征值
-				success(res) {
-					// uni.hideLoading()
-
-
-					lock.isConnect = true
-					uni.$u.toast('蓝牙连接成功！')
-				},
-				fail(e) {
-					uni.hideLoading();
-					if (e.errCode !== 0) {
-						initTypes(e.errCode);
-					} else {
-						uni.$u.toast('监听蓝牙失败，请重试！')
-					}
+			  deviceId: lock.deviceId, // 设备id
+			  serviceId: lock.serviceId, // 监听指定的服务
+			  characteristicId: lock.characteristicId ? lock.characteristicId[1]['uuid'] : '', // 监听对应的特征值
+			  async success(res) {
+				// 设置连接成功标志
+				if (lock.logDebug) lock.logDebug('特征值通知开启成功');
+				lock.isConnect = true
+				await new Promise(resolve => setTimeout(resolve, 500));
+				
+				// 只在第一次连接成功时显示提示
+				if (!lock.hasShownConnectSuccess) {
+				  uni.$u.toast('蓝牙连接成功！')
+				  lock.hasShownConnectSuccess = true; // 设置标志，表示已显示过提示
 				}
+			  },
+			  fail(e) {
+				uni.hideLoading();
+				if (lock.logDebug) lock.logDebug('特征值通知开启失败', e);
+				if (e.errCode !== 0) {
+				  initTypes(e.errCode);
+				} else {
+				  uni.$u.toast('监听蓝牙失败，请重试！')
+				}
+			  }
 			})
-		},
+		  },
 
 		// 接收数据 监听低功耗蓝牙设备的特征值变化
-		onBLECharacteristicValueChange(type) {
+		onBLECharacteristicValueChange() {
 			uni.onBLECharacteristicValueChange(async res => {
 				lock.unLockType = 0; // 接收到数据了，取消按钮loading
 				const data = lock.ab2hex(res.value);
 				const code = data.slice(0, 2);
-				console.log('接收数据=', data);
+				console.log('接收蓝牙数据=', data);
+				if (lock.logDebug) lock.logDebug('接收蓝牙数据', data);
 				
-				if (code == '13') {
-					//Todo：如果13解析出来是关锁就patch orderstep和lock
-					console.log('13', data.slice(32, 34))
-					  // 将十六进制转换为整数
-					    let decimalValue = parseInt(data.slice(32, 34), 16);
-					    
-					    // 转换为八位二进制字符串，前面补零
-					    let binaryString = decimalValue.toString(2).padStart(8, '0');
-					    // 获取后五位
-					    let lastFiveBits = binaryString.slice(-5);
-					    // 判断状态
-					    let state = "";
-					    if (lastFiveBits === "10000") {
-					        updateLock({lockStatus:'00',id:lock.currentLock.id},lock.currentLock.id).then(res=>{
-								console.log(res)
-							})
-					    } else if (lastFiveBits === "01111") {
-							console.log('currentLock',lock.currentLock)
-							console.log('currentStep',{id:lock.currentStep.id,lockStatus:'01',task:lock.currentStep.task,status:5,orderId:lock.currentStep.orderId})
-					         updateLock({lockStatus:'01',id:lock.currentLock.id},lock.currentLock.id).then(res=>{
-					         	console.log(res)
-					         })
-							 stepOrder({id:lock.currentStep.id,lockStatus:1,task:lock.currentStep.task,status:5,orderId:lock.currentStep.orderId},lock.currentStep.id).then(res=>{
-								 lock.currentStep.status=5
-							 						  console.log(res)
-							 					
-							 })
-					    } else {
-					        state = "未知状态";
-					    }
-					
-					// console.log('nowlock',lock.currentLock)
-					//如果是开锁就patch step
-					//如果是关锁就patch lock和step
-					
-					//发送13指令
-					// let ins13 = await getLockCmd({type:0x13, roll:lock.roll, id:lock.currentLock.id, cmd:data})
-					// ins13=[ins13.data.data['cmd']]
-					//  // console.log('step',lock.currentStep)
-					// lock.sendUnlockInstruct1(ins13)
-				}
 				if (code == '01') {
-					//如果是新锁 就获取10发送10 patch锁得key
-					console.log('newlock', data.slice(46, 48))
-					let newlock=data.slice(46, 48)
-					if(newlock!=='aa'){
-						lock.someDataFromB = lock.parseLockData(data)
-						
-					//	let ins02 = await getLockCmd({type:0x02, roll:lock.roll, id:lock.currentLock.id, cmd:data})
-
-					//	ins02=[ins02.data.data['cmd']]
+					// 解析01指令返回的数据
+					console.log('检测锁类型:', data.slice(46, 48));
+					if (lock.logDebug) lock.logDebug('检测锁类型', data.slice(46, 48));
+					let newlock = data.slice(46, 48);
+					// 无论是否为新锁，都解析并保存数据
+					lock.someDataFromB = lock.parseLockData(data);
+					console.log('解析的锁数据:', lock.someDataFromB);
+					if (lock.logDebug) lock.logDebug('解析的锁数据', lock.someDataFromB);
 					
-						
-					}else{
-						// let ins02 = await getLockCmd({type:0x02, roll:lock.roll, id:lock.currentLock.id, cmd:data})
-						// ins02=[ins02.data.data['cmd']]
-						// await lock.sendUnlockInstruct1(ins02)
-						console.log('旧锁')
-						return ;
+					// 根据锁状态处理
+					if (newlock !== 'aa') {
+						// 新锁处理
+						console.log('发现新锁，准备初始化');
+						if (lock.logDebug) lock.logDebug('发现新锁，准备初始化');
+					} else {
+						// 旧锁处理
+						console.log('连接到已初始化的锁，当前电量:', lock.someDataFromB.power);
+						if (lock.logDebug) lock.logDebug('连接到已初始化的锁，当前电量:', lock.someDataFromB.power);
+						if (lock.currentLock) {
+							updateLock({
+								lockStatus: '01', 
+								id: lock.currentLock.id,
+								power: lock.someDataFromB.power
+							}, lock.currentLock.id).then(res => {
+								console.log('已更新锁状态和电量', res);
+								if (lock.logDebug) lock.logDebug('已更新锁状态和电量', res);
+							});
+						}
 					}
-			
-					
-					// console.log('lock.someDataFromB', lock.someDataFromB)
+					// 增加roll值，准备下一条指令
+					lock.roll = lock.roll + 1;
+					if (lock.logDebug) lock.logDebug('更新roll值', lock.roll);
 				}
-				if(code==='10'){
-					this.baseDataFromB.currentKey=lock.curkey
-			
+				
+				if (code === '10') {
+					// 处理10指令返回数据
+					console.log('收到10指令回复，密钥已更新');
+					if (lock.logDebug) lock.logDebug('收到10指令回复，密钥已更新');
+					if (lock.curkey) {
+						lock.baseDataFromB.currentKey = lock.curkey;
+						if (lock.logDebug) lock.logDebug('更新当前密钥', lock.curkey);
+					}
+					lock.roll = lock.roll + 1;
+					if (lock.logDebug) lock.logDebug('更新roll值', lock.roll);
 				}
-
+				
 			}, err => {
-				console.log('获取失败了', err)
-			})
+				console.log('获取数据失败', err);
+				if (lock.logDebug) lock.logDebug('获取数据失败', err);
+			});
 		},
 
 		// 获取指令
-	async	getLockInstruct() {
-			// _type: 1 读取门锁信息 2初始化锁 3开锁
-			const orders = []
-			//如果是已经存在的锁链接
-			if(this.currentLock){
-				await getLockCmd({ id: this.currentLock.id, roll: this.roll, type: 0x01 })
-				  .then(res => {
-										
-				    // console.log(res);
-				    orders.push(res.data.data['cmd']);
-				  });
+		async getLockInstruct() {
+			if (!this.deviceId) {
+				uni.$u.toast('请先连接蓝牙锁');
+				return;
 			}
-			//如果是新锁 连接时候发送01
-			else{
-				lock.GenerateCommand(0x01, this.roll, 'C1:12:13:14:15:16')
-			}
-			console.log('10this.deviceId', this.deviceId)
-			if (!this.deviceId) return uni.$u.toast('请先连接蓝牙锁')
+			
+			// 开启按钮loading
+			lock.unLockType = 1;
+			uni.showLoading({
+				title: '与锁通信中...',
+				mask: true
+			});
+			
 			try {
-				// 开启按钮loading
-				lock.unLockType = 1;
-				// 获取指令
-
-				// 发送指令
-				// lock.sendInstruct(order,lock.unLockType);
-				lock.sendUnlockInstruct1(orders)
-				uni.hideLoading();
+				// 区分已存在的锁和新锁
+				if (this.currentLock) {
+					// 已存在锁: 使用锁ID获取01指令
+					if (!this.currentLock.id) {
+						throw new Error('锁ID不存在');
+					}
+					
+					const result = await getLockCmd({ 
+						id: this.currentLock.id, 
+						roll: this.roll, 
+						type: 0x01 
+					});
+					
+					if (!result || !result.data) {
+						throw new Error('获取指令返回数据为空');
+					}
+					
+					if (result.data && result.data.data) {
+						const orders = [result.data.data['cmd']];
+						await this.sendUnlockInstruct1(orders);
+						console.log('已存在锁指令发送完成');
+					} else {
+						throw new Error('获取指令失败');
+					}
+				} else {
+					// 新锁: 直接构造01指令
+					console.log('准备发送新锁01指令, roll:', this.roll);
+					
+					if (!this.deviceId.includes(':')) {
+						throw new Error('MAC地址格式错误');
+					}
+					
+					let buffer = this.GenerateCommand(0x01, this.roll, this.deviceId);
+					
+					if (!buffer || buffer.byteLength === 0) {
+						throw new Error('生成指令失败');
+					}
+					
+					if (!this.characteristicId || this.characteristicId.length === 0) {
+						throw new Error('特征值不存在');
+					}
+					
+					// 使用分包发送
+					await new Promise((resolve, reject) => {
+						enqueueTask(
+							buffer,
+							(subBuffer, ok) => {
+								setTimeout(() => {
+									uni.writeBLECharacteristicValue({
+										deviceId: this.deviceId, // 设备id
+										serviceId: this.serviceId, // 监听指定的服务
+										characteristicId: this.characteristicId[0].uuid.toLowerCase(), // 特征值
+										value: subBuffer,
+										success: ok,
+										fail: (err) => {
+											console.log("发送包失败：" + JSON.stringify(err));
+											if (err.errCode) {
+												initTypes(err.errCode, err.errMsg);
+											}
+										}
+									})
+								}, 300);
+							},
+							(success) => {
+								if (success) {
+									console.log('新锁01指令发送成功');
+									resolve();
+								} else {
+									uni.$u.toast('指令发送失败');
+									reject(new Error('指令发送失败'));
+								}
+							}
+						);
+					});
+				}
 			} catch (e) {
+				console.error('发送指令错误:', e);
+				uni.$u.toast('通信失败: ' + e.message);
+			} finally {
 				uni.hideLoading();
-				uni.$u.toast('开锁失败，请扫码重试！', e)
+				lock.unLockType = 0;
 			}
 		},
 		// 向蓝牙发送01指令
@@ -636,103 +851,134 @@ export default {
 				})
 			}
 		},
-		// 向蓝牙发送开锁指令
-		async sendUnlockInstruct(obj, _type) {
-			console.log('进入send');
-			console.log('设备ID:', lock.deviceId);
+		// 改进的分包发送方法
+		async sendUnlockInstruct1(commands) {
+			if (!commands || commands.length === 0) {
+				uni.$u.toast('无有效指令');
+				if (this.logDebug) this.logDebug('无有效指令');
+				return;
+			}
+		
+			// 只有在服务未初始化时才调用getServices
+			if (!this.servicesInitialized) {
+				console.log('服务未初始化，正在初始化...');
+				if (this.logDebug) this.logDebug('服务未初始化，正在初始化...');
+				try {
+					await this.getServices();
+					// 服务初始化后等待一段时间
+					await new Promise(resolve => setTimeout(resolve, 500));
+				} catch (error) {
+					console.error('服务初始化失败:', error);
+					if (this.logDebug) this.logDebug('服务初始化失败', error);
+					uni.$u.toast('服务初始化失败，请重试');
+					return;
+				}
+			} else {
+				console.log('服务已初始化，直接发送命令');
+				if (this.logDebug) this.logDebug('服务已初始化，直接发送命令');
+			}
+			
+			// 设备连接信息
+			const deviceId = this.deviceId;
+			const serviceId = this.serviceId;
+			
+			if (!deviceId || !serviceId) {
+				uni.$u.toast('蓝牙连接信息不完整');
+				if (this.logDebug) this.logDebug('蓝牙连接信息不完整', {deviceId, serviceId});
+				return;
+			}
+			
+			if (!this.characteristicId || this.characteristicId.length === 0) {
+				uni.$u.toast('特征值信息缺失');
+				if (this.logDebug) this.logDebug('特征值信息缺失');
+				// 特征值缺失时尝试重新初始化
+				this.servicesInitialized = false;
+				return;
+			}
+			
+			const characteristicId = this.characteristicId[0].uuid.toLowerCase();
+			if (this.logDebug) this.logDebug('准备发送指令', {
+				deviceId,
+				serviceId,
+				characteristicId,
+				commandCount: commands.length
+			});
 
-			// 更新 roll 值
-
-
-			// 每个包允许的最大字节数
-			const maxPacketBytes = 20;
-			// 对应的十六进制字符长度（每个字节2个字符）
-			const maxPacketHexLength = maxPacketBytes * 2;
-
-			// 遍历所有指令（obj 数组中每个元素均为一个十六进制字符串）
-			for (let idx = 0; idx < obj.length; idx++) {
-				lock.roll = lock.roll + 1;
-				const command = obj[idx]; // 例如："0100000dc1010101e1b2190204160f1ec7"
-				// 计算需要分多少包（以 hex 字符数计算）
-				const totalPackets = Math.ceil(command.length / maxPacketHexLength);
-
-				for (let i = 0; i < totalPackets; i++) {
-					// 从 command 中截取每个包的十六进制子串
-					const packetHex = command.slice(i * maxPacketHexLength, (i + 1) * maxPacketHexLength);
-					console.log(`发送包 ${i + 1} / ${totalPackets}:`, packetHex);
-
-					// 使用 lock.getBuffer 将十六进制字符串转换为 ArrayBuffer 或对应的 buffer
-					const buffer = lock.getBuffer(packetHex);
-
-					// 延时发送每个包（例如延时 150 毫秒）
-					await lock.sendDelay(150, buffer).then(() => {
-						uni.writeBLECharacteristicValue({
-							deviceId: lock.deviceId,
-							serviceId: lock.serviceId,
-							characteristicId: lock.characteristicId ?
-								lock.characteristicId[0]['uuid'].toLowerCase() :
-								'',
-							value: buffer,
-							success(res) {
-								console.log('指令包发送成功:', packetHex);
+			// 依次发送每条指令
+			for (let i = 0; i < commands.length; i++) {
+				const command = commands[i];
+				console.log(`准备发送指令 ${i+1}/${commands.length}:`, command.slice(0, 20) + '...');
+				if (this.logDebug) this.logDebug(`准备发送指令 ${i+1}/${commands.length}`, command.slice(0, 20) + '...');
+				
+				// 将16进制字符串转换为ArrayBuffer
+				const buffer = this.hexStringToBuffer(command);
+				
+				if (buffer.byteLength === 0) {
+					uni.$u.toast(`指令 ${i+1} 解析失败`);
+					if (this.logDebug) this.logDebug(`指令 ${i+1} 解析失败`);
+					continue;
+				}
+				
+				try {
+					// 使用Promise包装分包发送过程
+					await new Promise((resolve, reject) => {
+						enqueueTask(
+							buffer,
+							(subBuffer, ok) => {
+								// 发送子包
+								if (this.logDebug) this.logDebug('发送子包', {size: subBuffer.byteLength});
+								uni.writeBLECharacteristicValue({
+									deviceId: deviceId,
+									serviceId: serviceId,
+									characteristicId: characteristicId,
+									value: subBuffer,
+									success: (res) => {
+										if (this.logDebug) this.logDebug('子包发送成功');
+										ok(res);
+									},
+									fail: (err) => {
+										console.error('子包发送失败:', err);
+										if (this.logDebug) this.logDebug('子包发送失败', err);
+										if (err.errCode) {
+											initTypes(err.errCode, err.errMsg);
+											// 某些错误可能表示连接状态变化，需要重新初始化
+											if (err.errCode === 10006 || err.errCode === 10012) {
+												lock.servicesInitialized = false;
+											}
+										} else {
+											uni.$u.toast('指令发送失败: ' + err.errMsg);
+										}
+									}
+								});
 							},
-							fail(err) {
-								if (err.errCode !== 0) {
-									initTypes(err.errCode);
-								}
-							},
-							complete(err) {
-								console.log('指令发送结果', err);
-								if (err.errCode !== 0) {
-									initTypes(err.errCode);
+							(success) => {
+								if (success) {
+									console.log(`指令 ${i+1} 发送成功`);
+									if (this.logDebug) this.logDebug(`指令 ${i+1} 发送成功`);
+									resolve();
+								} else {
+									uni.$u.toast(`指令 ${i+1} 发送失败`);
+									if (this.logDebug) this.logDebug(`指令 ${i+1} 发送失败`);
+									reject(new Error('指令发送失败'));
 								}
 							}
-						});
+						);
 					});
+					
+					// 每条指令之间等待一定时间，确保处理完成
+					await new Promise(resolve => setTimeout(resolve, 800));
+					
+				} catch (error) {
+					console.error('发送指令出错:', error);
+					if (this.logDebug) this.logDebug('发送指令出错', error);
+					uni.$u.toast('发送指令出错: ' + error.message);
+					throw error; // 将错误传递给调用者
 				}
 			}
-		},
-		//分包测试
-		async sendUnlockInstruct1(obj, _type) {
-	
-			// 遍历所有指令（obj 数组中每个元素均为一个十六进制字符串）
-			for (let idx = 0; idx < obj.length; idx++) {
-				// 更新 roll 值
-				lock.roll = lock.roll + 1;
-				const command = obj[idx]; // 例如："0100000dc1010101e1b2190204160f1ec7"
-				var deviceId = lock.deviceId
-				var serviceId = lock.serviceId
-				var characteristicId = lock.characteristicId[0].uuid.toLowerCase()
-				
-				// 使用 lock.getBuffer 将十六进制字符串转换为 ArrayBuffer 或对应的 buffer
-				const buffer = lock.hexStringToBuffer(command);
-				// const buffer=lock.getBuffer(command)
-				enqueueTask(
-					buffer,
-					(subBuffer, ok) => {
-						// 这里实现发送数据包subBuffer出去。
-						uni.writeBLECharacteristicValue({
-							deviceId: deviceId, // 设备id
-							serviceId: serviceId, // 监听指定的服务
-							characteristicId: characteristicId, // 监听对应的特征值
-							value: subBuffer,
-							success: ok, // 发送成功要调用ok方法记录下来，不然enqueueTask里面不知道全部成功了没有
-							fail: (err) => {
-								console.log("发送包失败：" + formatErrInfo(err))
-							}
-						})
-					},
-					(success) => {
-						// console.log("成功发送1条")
-					
-					},
-				)
-
-				// await lock.sendDelay(2000, buffer);
-				// this.sendWriteBLECharacteristicValue(deviceId,serviceId,characteristicId,buffer)
-				// this.sendMsgToKey(buffer)
-				// this.printbuffs(buffer)
-			}
+			
+			console.log('所有指令发送完成');
+			if (this.logDebug) this.logDebug('所有指令发送完成');
+			return true;
 		},
 		// 指令发送分包处理1
 		async printbuffs(buffer) {
@@ -749,7 +995,7 @@ export default {
 				pos += offset;
 				bytes -= offset;
 				// 延迟发送
-				await that.sendDelay(150, tempBuffer).then(buffer => {
+				await that.sendDelay(300, tempBuffer).then(buffer => {
 					uni.writeBLECharacteristicValue({
 						deviceId: lock.deviceId,
 						serviceId: lock.serviceId,
@@ -785,7 +1031,7 @@ export default {
 		async sendMsgToKey(buffer) {
 			const MTU = 20; // 根据设备MTU调整
 			if (!lock.deviceId || !lock.serviceId || !lock.characteristicId?.[0]?.uuid) {
-				console.error('设备未就绪');
+				uni.$u.toast('设备未就绪，无法发送数据');
 				return;
 			}
 
@@ -802,6 +1048,11 @@ export default {
 					console.log('完整包发送成功');
 				} catch (err) {
 					console.error('发送失败:', err);
+					if (err.errCode) {
+						initTypes(err.errCode, err.errMsg);
+					} else {
+						uni.$u.toast('发送数据失败: ' + err.errMsg);
+					}
 					throw err;
 				}
 			} else {
@@ -824,6 +1075,11 @@ export default {
 					await this.sendMsgToKey(remaining);
 				} catch (err) {
 					console.error('分包发送失败:', err);
+					if (err.errCode) {
+						initTypes(err.errCode, err.errMsg);
+					} else {
+						uni.$u.toast('分包发送失败: ' + err.errMsg);
+					}
 					throw err;
 				}
 			}
@@ -836,33 +1092,48 @@ export default {
 			writeCharacteristicId,
 			buffer,
 		) {
+			if (!deviceId || !serviceId || !writeCharacteristicId) {
+				uni.$u.toast('蓝牙参数不完整');
+				return;
+			}
+			
 			const offset = 20; // 偏移量
 			let pos = 0; // 位置
 			let bytes = buffer.byteLength; // 总字节
 			let that = this;
+			
 			while (bytes > 0) {
 				let endPos = bytes > offset ? pos + offset : pos + bytes;
 				const tempBuffer = buffer.slice(pos, endPos);
 				pos += offset;
 				bytes -= offset;
 				// 延迟发送
-				await that.sendDelay(150, tempBuffer).then((buffer) => {
-					uni.writeBLECharacteristicValue(
-						deviceId,
-						serviceId,
-						writeCharacteristicId,
-						buffer,
-						(res) => {
-							if (buffer.byteLength < offset) {
-								console.log(res)
+				try {
+					await that.sendDelay(150, tempBuffer).then((buffer) => {
+						uni.writeBLECharacteristicValue(
+							deviceId,
+							serviceId,
+							writeCharacteristicId,
+							buffer,
+							(res) => {
+								if (buffer.byteLength < offset) {
+									console.log(res)
+								}
+							},
+							(err) => {
+								console.log(err);
+								if (err.errCode) {
+									initTypes(err.errCode, err.errMsg);
+								} else {
+									uni.$u.toast('写入特征值失败: ' + err.errMsg);
+								}
 							}
-						},
-						(err) => {
-							console.log(err)
-						}
-					);
-				});
-
+						);
+					});
+				} catch (error) {
+					uni.$u.toast('分包发送错误: ' + error.message);
+					break;
+				}
 			}
 		},
 
@@ -953,10 +1224,28 @@ function initTypes(code, errMsg) {
 		case 10009:
 			uni.$u.toast('Android 系统特有，系统版本低于 4.3 不支持 BLE');
 			break;
+		case 10010:
+			uni.$u.toast('没有找到指定设备的指定服务');
+			break;
+		case 10011:
+			uni.$u.toast('没有找到指定设备指定服务的特征值');
+			break;
+		case 10012:
+			uni.$u.toast('特征值设置失败，当前连接已断开');
+			break;
 		case 10013:
 			uni.$u.toast('连接 deviceId 为空或者是格式不正确');
 			break;
+		case 10014:
+			uni.$u.toast('连接设备超时');
+			break;
+		case 10015:
+			uni.$u.toast('通信断开，无法连接蓝牙设备');
+			break;
+		case 10016:
+			uni.$u.toast('蓝牙连接已移除或未连接成功');
+			break;
 		default:
-			uni.$u.toast(errMsg);
+			uni.$u.toast(errMsg || '蓝牙操作发生未知错误');
 	}
 }

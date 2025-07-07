@@ -9,7 +9,7 @@
 				<view class="search-box">
 					<input class="search-input" v-model="searchKeyword" placeholder="请输入关键字搜索" />
 					<button class="btn" @tap="onSearch">搜索</button>
-					<button class="btn" @tap="onSearch">重置</button>
+					<button class="btn" @tap="onReset">重置</button>
 				</view>
 			</view>
 			<view class="uni-container">
@@ -146,7 +146,7 @@
 					<view style="padding: 20rpx;" class="flex diygw-dialog-content">
 						<uni-forms ref="addForm" :rules="addRules" :model="this.selectedItem">
 							<uni-forms-item required label="用户名" name="username">
-								<uni-easyinput type="text" disabled="true" v-model="selectedItem.username" placeholder="请输入用户名"
+								<uni-easyinput type="text" v-model="selectedItem.username" :disabled="true" placeholder="请输入用户名"
 									 />
 							</uni-forms-item>	
 							<uni-forms-item required name="roles" label="权限" >
@@ -238,6 +238,8 @@
 					'detail': true,
 					'update': false
 				}, //判断是否弹窗输入框可用
+				searchKeyword: '', // 搜索关键词
+				selectedIndexs: [], // 选中的行索引
 				addRules:{
 					username: {
 										rules: [{
@@ -472,6 +474,7 @@
 						});
 					}
 					this.humansData = res.data.data.pageData
+					this.total = res.data.data.total
 				})
 			},
 			async init() {
@@ -669,6 +672,60 @@
 					type: 'openmodal',
 					id: 'consumed'
 				});
+			},
+			// 搜索方法
+			onSearch() {
+				console.log('搜索关键词:', this.searchKeyword);
+				// 调用API进行搜索
+				getUserList({
+					username: this.searchKeyword
+				}).then(res => {
+					if (res.data.code == 10002) {
+						uni.clearStorageSync();
+						this.navigateTo({
+							type: 'page',
+							url: 'login'
+						});
+						return;
+					}
+					this.humansData = res.data.data.pageData;
+					this.total = res.data.data.total;
+				});
+			},
+			// 重置方法
+			onReset() {
+				this.searchKeyword = '';
+				this.getData(1); // 重置后加载第一页数据
+			},
+			// 批量删除方法
+			onBatchDelete() {
+				if (this.selectedIndexs && this.selectedIndexs.length > 0) {
+					let ids = [];
+					this.selectedIndexs.forEach(index => {
+						ids.push(this.humansData[index].id);
+					});
+					
+					uni.showModal({
+						title: '确认删除',
+						content: '确定要删除选中的人员吗？',
+						success: res => {
+							if (res.confirm) {
+								deleteUsers({ids: ids}).then(res => {
+									uni.showToast({
+										title: '删除成功',
+										icon: 'success'
+									});
+									this.getData(this.pageCurrent);
+								});
+							}
+						}
+					});
+				} else {
+					uni.showToast({
+						title: '请先选择要删除的人员',
+						icon: 'none'
+					});
+				}
 			}
 		}
 	};

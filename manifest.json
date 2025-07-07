@@ -2,8 +2,8 @@
     "name" : "五防锁",
     "appid" : "__UNI__B660C6C",
     "description" : "",
-    "versionName" : "1.1.0",
-    "versionCode" : 110,
+    "versionName" : "1.2",
+    "versionCode" : 1200,
     "transformPx" : false,
     "app-plus" : {
         "usingComponents" : true,
@@ -114,7 +114,7 @@
             "proxy" : {
                 /**配置服务器路径**/
                 "/api" : {
-                    "target" : "http://182.92.76.31:8800", // 目标服务器
+                    "target" : "http://118.31.245.112:8800", // 目标服务器
                     "changeOrigin" : true,
                     /**重写路径**/
                     "pathRewrite" : {

@@ -3,7 +3,7 @@
 		<view class="flex flex-wrap diygw-col-24 flex-direction-column flex2-clz">
 		<view class="toolbar">
 		  <button class="btn" @click="clickDetailFunction(item,'create')" >新增</button>
-		  <button class="btn" @tap="onDelete('batch')">批量删除</button>
+		
 		
 		  <!-- 搜索框区域 -->
 		  <view class="search-box">
@@ -21,7 +21,7 @@
 				<uni-table v-if="stationList && stationList.length > 0" ref="table"  border stripe type="selection" emptyText="暂无更多数据" @selection-change="selectionChange">
 					<uni-tr>
 						<uni-th width="50" align="center">ID</uni-th>
-						<uni-th width="50" align="center">名称</uni-th>
+						<uni-th width="150" align="center">名称</uni-th>
 						<uni-th width="50" align="center">SN</uni-th>
 						<uni-th  align="center">锁具MAC</uni-th>
 						<uni-th  align="center">锁具位置</uni-th>
@@ -36,15 +36,16 @@
 						<uni-td align="center">{{ item.sn }}</uni-td>
 						<uni-td align="center">{{ item.mac }}</uni-td>
 						<uni-td align="center">{{ item.location }}</uni-td>
-						<uni-td align="center">{{item.power }}</uni-td>
+						<uni-td align="center">{{Number.parseInt(item.power, 16) }}</uni-td>
 						
 						<uni-td align="center">{{ stationList.find(station=>station.id===item.stationId).name }}</uni-td>
 						<uni-td align="center">{{ item.stationType==1?'工厂':'仓库' }}</uni-td>
 						<uni-td >
-						
+						<view class="button-row">
 						<button type="primary" size="mini"  @click="clickDetailFunction(item,'update')">修改</button>
-
+						<button v-if="isAdmin" type="primary" size="mini" @click="handleUnlock(item)" >开锁</button>
 						<button type="warn" size="mini" @click="onDelete('one',item)" >删除</button>
+						</view>
 						</uni-td>
 					</uni-tr>
 				</uni-table>
@@ -92,6 +93,7 @@
 						<view v-if="devices.length > 0">
 						        <view
 						          v-for="(device, index) in devices"
+								  v-if="!lockList.some(item => device.deviceId.replace(/:/g, '') === item.mac)"
 						          :key="index"
 						          style="margin-top: 10px; padding: 10px; border: 1px solid #eee;"
 						        >
@@ -149,12 +151,48 @@
 				</view>
 			</view>
 		</view>
+<view class="diygw-modal basic" :class="loadingModal" style="z-index: 2000000">
+  <view class="diygw-dialog diygw-dialog-loading basis-lg">
+    <view class="loading-content">
+      <view class="loading-icon">
+        <view class="loading-spinner"></view>
+      </view>
+      <view class="loading-text">{{ loadingText }}</view>
+      <view class="progress-bar" :class="currentStep">
+        <view class="progress-fill"></view>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 添加调试信息模态框 -->
+<view class="diygw-modal basic" :class="debugModal" style="z-index: 3000000">
+  <view class="diygw-dialog diygw-dialog-debug basis-lg">
+    <view class="justify-end diygw-bar">
+      <view class="content">调试信息</view>
+      <view class="action" data-type="closemodal" data-id="debugModal" @tap="navigateTo">
+        <i class="diy-icon-close"></i>
+      </view>
+    </view>
+    <view class="debug-content">
+      <scroll-view scroll-y style="height: 400rpx; padding: 20rpx;">
+        <view v-for="(log, index) in debugLogs" :key="index" class="debug-log-item">
+          <text>{{log.time}}: {{log.message}}</text>
+        </view>
+      </scroll-view>
+    </view>
+    <view class="flex justify-end">
+      <button data-type="closemodal" @tap="clearDebugLogs" data-id="debugModal" class="diygw-btn green flex1 margin-xs">清空日志</button>
+      <button data-type="closemodal" @tap="navigateTo" data-id="debugModal" class="diygw-btn red flex1 margin-xs">关闭</button>
+    </view>
+  </view>
+</view>
 		<view class="clearfix"></view>
 	</view>
 </template>
 
 <script>
-import {getUserInfo,getUserList,getLockCmd,getStationList,deleteLocks,deleteStation,deleteStations,addStation, updateStation, getLockList, addLock, updateLock} from '../../api/user.js'
+import {getUserInfo,getLock01Cmd,getLock10Cmd,getUserList,getLockCmd,getStationList,deleteLocks,deleteStation,deleteStations,addStation, updateStation, getLockList, addLock, updateLock} from '../../api/user.js'
 import bluetooth from '../../mixins/bluetooth.js'
 import store from '@/store/index.js';
 	export default {
@@ -163,11 +201,13 @@ import store from '@/store/index.js';
 			return {
 				stationList:[],
 				lockList:[],
+				lockId:null,
 				chooseType:null,
 				//用户全局信息
 				currentUser:{},
 				deleteLock:{},
 				userInfo: {},
+				currentLock:{},
 				currentModal:'',//当前弹窗
 				currentModalTitle:'',//当前弹窗标题
 				inputDisabled:{
@@ -215,16 +255,23 @@ import store from '@/store/index.js';
 			
 				returned: '',
 				consumed: '',
-				detail:''
+				detail:'',
+				loadingModal: '', // 控制加锁中模态框的显示隐藏
+				loadingText: '处理中，请稍候...', // 加锁中模态框的提示文本
+				currentStep: 'step-1', // 当前步骤，用于控制进度条样式
+				// 调试信息相关
+				debugModal: '',
+				debugLogs: [],
+				isLoggingEnabled: true,
 			};
 		},
-		watch:{
-			isConnect(val){
-				if(val) this.getLockInstruct()
-			}
-		},
+		
 		computed: {
-			
+			// 判断是否超级管理员
+			isAdmin() {
+				let roles = uni.getStorageSync('user').roles || [];
+				return roles.some(role => role.id === 1);
+			},
 		    // 判断是否全选
 		    isAllSelected() {
 		      return this.humansData.data.length > 0 && this.humansData.data.every(item =>item.checked==true);
@@ -246,21 +293,317 @@ import store from '@/store/index.js';
 			this.init();
 		},
 		methods: {
-			async bindDevice(device){
-				if(device){
-					// 调用蓝牙连接方法
-					  // console.log('device',device)
-					  this.connectBluetoothDevice(device);
-					  this.device=device
+			// 添加日志记录功能
+			logDebug(message, data) {
+				if (!this.isLoggingEnabled) return;
 				
-					  
-					  // console.log('蓝牙设备已连接, roll:', this.roll);
-					  
+				const now = new Date();
+				const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
 				
+				let logMessage = message;
+				if (data !== undefined) {
+					try {
+						if (typeof data === 'object') {
+							logMessage += ': ' + JSON.stringify(data);
+						} else {
+							logMessage += ': ' + data;
+						}
+					} catch (e) {
+						logMessage += ': [无法序列化对象]';
+					}
 				}
 				
+				console.log(logMessage); // 仍然保留控制台输出
+				this.debugLogs.push({
+					time: timeStr,
+					message: logMessage
+				});
+				
+				// 保持日志数量在合理范围内
+				if (this.debugLogs.length > 1000) {
+					this.debugLogs = this.debugLogs.slice(-500);
+				}
 			},
-			 parseLockData(rawHex) {
+			
+			// 显示调试信息弹窗
+			showDebugModal() {
+				this.debugModal = 'show';
+			},
+			
+			// 清空调试日志
+			clearDebugLogs() {
+				this.debugLogs = [];
+				this.debugModal = '';
+			},
+			// 显示加载模态框
+			showLoadingModal(text = '处理中，请稍候...') {
+			  this.loadingText = text;
+			  this.loadingModal = 'show';
+			  this.logDebug(text); // 添加日志记录
+			  
+			  // 根据文本中的步骤信息更新当前步骤
+			  if(text.includes('步骤1/5')) {
+			    this.currentStep = 'step-1';
+			  } else if(text.includes('步骤2/5')) {
+			    this.currentStep = 'step-2';
+			  } else if(text.includes('步骤3/5')) {
+			    this.currentStep = 'step-3';
+			  } else if(text.includes('步骤4/5')) {
+			    this.currentStep = 'step-4';
+			  } else if(text.includes('步骤5/5')) {
+			    this.currentStep = 'step-5';
+			  } else {
+			    // 如果没有步骤信息，默认为步骤1
+			    this.currentStep = 'step-1';
+			  }
+			},
+			// 隐藏加载模态框
+			hideLoadingModal() {
+			  this.loadingModal = '';
+			  this.logDebug('操作完成，隐藏加载框');
+			},
+			async bindDevice(device){
+				if(device){
+					this.logDebug('开始绑定设备', device);
+					// 调用蓝牙连接方法
+					    // 先断开已连接的设备
+					    if (device.deviceId) {
+					      try {
+					        // 断开当前连接的设备
+					        await uni.closeBLEConnection({ deviceId: device.deviceId });
+					        this.logDebug('已断开旧设备连接');
+					      } catch (err) {
+					        this.logDebug('断开连接时出错', err);
+					        // 这里可以选择继续连接或抛出错误
+					      }
+					    }
+					  // console.log('device',device)
+					  this.connectBluetoothDevice(device);
+					  this.device=device;
+					  this.logDebug('已尝试连接蓝牙设备', device.deviceId);
+				}
+			},
+			
+			// 超级管理员专用开锁功能
+			async handleUnlock(lock) {
+			  // 显示加载提示
+			  this.showLoadingModal('步骤1/5: 初始化开锁操作...');
+			  
+			  // 根据锁信息获取MAC地址
+			  let targetMac = lock.mac.toLowerCase();
+			  this.currentLock = lock;
+			  this.logDebug('开始开锁操作，目标锁MAC：', targetMac);
+			  
+			  // 触发蓝牙扫描
+			  this.openBluetoothAdapter();
+			  
+			  // 等待蓝牙扫描完成
+			  setTimeout(async () => {
+			    this.showLoadingModal('步骤2/5: 扫描附近设备...');
+			    
+			    // 在扫描到的设备数组中查找与targetMac匹配的设备
+			    const device = this.devices.find(dev => {
+			      const devMac = dev.deviceId.replace(/:/g, '').toLowerCase();
+			      return devMac === targetMac;
+			    });
+			    
+			    if (device) {
+			      this.showLoadingModal('步骤3/5: 连接设备中...');
+			      
+			      // 调用蓝牙连接方法
+			      this.connectBluetoothDevice(device);
+			      this.device = device;
+			      
+			      // 等待连接完成
+			      await new Promise(resolve => setTimeout(resolve, 3000));
+			      this.logDebug('设备已连接，准备发送开锁指令，roll值：', this.roll);
+			      
+			      // 更新加载提示
+			      this.showLoadingModal('步骤4/5: 发送开锁指令...');
+			      
+			      // 获取并发送01指令
+			      await getLockCmd({ id: lock.id, roll: this.roll, type: 0x01 })
+			        .then(async res => {
+			          let ins01 = [];
+			          this.logDebug('获取01指令结果：', res);
+			          ins01.push(res.data.data['cmd']);
+			          this.logDebug('准备发送01指令：', ins01);
+			          await this.sendUnlockInstruct1(ins01);
+			        })
+			        .catch(err => {
+			          this.logDebug('获取01指令失败：', err);
+			          uni.showToast({
+			            title: '获取开锁指令失败',
+			            icon: 'none',
+			            duration: 2000
+			          });
+			        });
+			        
+			      // 等待01指令处理完成
+			      await new Promise(resolve => setTimeout(resolve, 2000));
+			      
+			      // 更新加载提示
+			      this.showLoadingModal('步骤5/5: 发送开锁命令...');
+			      
+			      // roll值有效，发送开锁指令
+			      if (this.roll > 0) {
+			        await getLockCmd({ id: lock.id, roll: this.roll, type: 0xE0 })
+			          .then(async res => {
+			            let insE0 = [];
+			            this.logDebug('获取E0开锁指令结果：', res);
+			            insE0.push(res.data.data['cmd']);
+			            this.logDebug('准备发送E0开锁指令：', insE0);
+			            await this.sendUnlockInstruct1(insE0);
+			          })
+			          .catch(err => {
+			            this.logDebug('获取E0开锁指令失败：', err);
+			          });
+			          
+			        // 等待开锁命令处理完成
+			        await new Promise(resolve => setTimeout(resolve, 1500));
+			        
+			        // 开锁成功提示
+			        this.hideLoadingModal();
+			        uni.showToast({
+			          title: '开锁成功',
+			          icon: 'success',
+			          duration: 2000
+			        });
+			      } else {
+			        // roll值无效，开锁失败
+			        this.hideLoadingModal();
+			        uni.showToast({
+			          title: '开锁失败，请重试',
+			          icon: 'none',
+			          duration: 2000
+			        });
+			      }
+			    } else {
+			      // 未找到设备
+			      this.hideLoadingModal();
+			      uni.showToast({
+			        title: '未找到对应的蓝牙设备，请确认设备是否已开启',
+			        icon: 'none',
+			        duration: 2000
+			      });
+			    }
+			  }, 5000); // 扫描等待时间设为5秒，提高成功率
+			},
+			
+			// 获取指令
+			async getLockInstruct() {
+				if (!this.deviceId) {
+					uni.$u.toast('请先连接蓝牙锁');
+					this.logDebug('未找到设备ID，无法获取指令');
+					return;
+				}
+				
+				// 开启按钮loading
+				lock.unLockType = 1;
+				uni.showLoading({
+					title: '与锁通信中...',
+					mask: true
+				});
+				this.logDebug('开始获取锁具指令，设备ID:', this.deviceId);
+				
+				try {
+					// 区分已存在的锁和新锁
+					if (this.currentLock) {
+						// 已存在锁: 使用锁ID获取01指令
+						if (!this.currentLock.id) {
+							this.logDebug('锁ID不存在，无法获取指令');
+							throw new Error('锁ID不存在');
+						}
+						
+						this.logDebug('获取已存在锁的指令，锁ID:', this.currentLock.id, '滚码值:', this.roll);
+						const result = await getLockCmd({ 
+							id: this.currentLock.id, 
+							roll: this.roll, 
+							type: 0x01 
+						});
+						
+						if (!result || !result.data) {
+							this.logDebug('获取指令返回数据为空');
+							throw new Error('获取指令返回数据为空');
+						}
+						
+						if (result.data && result.data.data) {
+							const orders = [result.data.data['cmd']];
+							this.logDebug('获取到指令，准备发送', orders);
+							await this.sendUnlockInstruct1(orders);
+							this.logDebug('已存在锁指令发送完成');
+						} else {
+							this.logDebug('获取指令失败');
+							throw new Error('获取指令失败');
+						}
+					} else {
+						// 新锁: 直接构造01指令
+						this.logDebug('准备发送新锁01指令, roll:', this.roll);
+						
+						if (!this.deviceId.includes(':')) {
+							this.logDebug('MAC地址格式错误', this.deviceId);
+							throw new Error('MAC地址格式错误');
+						}
+						
+						let buffer = this.GenerateCommand(0x01, this.roll, this.deviceId);
+						
+						if (!buffer || buffer.byteLength === 0) {
+							this.logDebug('生成指令失败');
+							throw new Error('生成指令失败');
+						}
+						
+						if (!this.characteristicId || this.characteristicId.length === 0) {
+							this.logDebug('特征值不存在');
+							throw new Error('特征值不存在');
+						}
+						
+						this.logDebug('开始发送新锁01指令，指令长度:', buffer.byteLength);
+						// 使用分包发送
+						await new Promise((resolve, reject) => {
+							enqueueTask(
+								buffer,
+								(subBuffer, ok) => {
+									setTimeout(() => {
+										uni.writeBLECharacteristicValue({
+											deviceId: this.deviceId, // 设备id
+											serviceId: this.serviceId, // 监听指定的服务
+											characteristicId: this.characteristicId[0].uuid.toLowerCase(), // 特征值
+											value: subBuffer,
+											success: (res) => {
+												this.logDebug('子包发送成功');
+												ok(res);
+											},
+											fail: (err) => {
+												this.logDebug('发送包失败', err);
+												if (err.errCode) {
+													initTypes(err.errCode, err.errMsg);
+												}
+											}
+										})
+									}, 300);
+								},
+								(success) => {
+									if (success) {
+										this.logDebug('新锁01指令发送成功');
+										resolve();
+									} else {
+										this.logDebug('指令发送失败');
+										uni.$u.toast('指令发送失败');
+										reject(new Error('指令发送失败'));
+									}
+								}
+							);
+						});
+					}
+				} catch (e) {
+					this.logDebug('发送指令错误', e);
+					uni.$u.toast('通信失败: ' + e.message);
+				} finally {
+					uni.hideLoading();
+					lock.unLockType = 0;
+				}
+			},
+			parseLockData(rawHex) {
 			  // 第 11 个字节下标是 10，每字节占 2 个 hex 字符 => 跳过前 20 个 hex 字符
 			  const subHex = rawHex.slice(20);
 			
@@ -357,58 +700,132 @@ import store from '@/store/index.js';
 			    }
 			  });
 			},
-			async createOrupdate(){
-				if(this.currentModal=='create'){
-					console.log(this.selectedItem)
-				// 在页面B中从本地存储中读取数据
-					let id=null
-				
-					// 发送开锁指令（类型 0x01）
-					 getLockCmd({ id: id, roll: this.roll, type: 0x01 })
-					  .then(async res => {
-						let ins01=[]
-						let id=null
-					    // console.log(res);
-					    ins01.push(res.data.data['cmd']);
-						// ins1.push('0100000dc1020101e1b219020800241ac6')
-					await	this.sendUnlockInstruct1(ins01);
-					  });
-				     addLock({adminId:this.currentUser.id,enable:true,...this.selectedItem,...this.baseDataFromB,...this.someDataFromB}).then(res=>{
-					  	console.log(res.data.data)
-					  	id=res.data.data
-					  
-					  })
-					//根据id取10命令，
-					//请求10命令更改密钥
-					let ins10=await  getLockCmd({id:id,roll:this.roll,type:0x10})
-					let curkey=ins10.data.data['key']
-					ins10=[ins10.data.data['cmd']]
-					await lock.sendUnlockInstruct1(ins10)
-					await updateLock({currentKey:curkey,id:id},id).then(res=>{
-					         	console.log(res)
-					         })
-					// await  getLockCmd({id:id,roll:this.roll,type:0x10}).then(res=>{
-					// 							 console.log('10get',res)
-					// })
-					//todo 拿着命令去执行10命令
-					// console.log('着命令去执行10命',this.roll)
-					
-					//todo 根据锁返回信息来调用接口更新锁的currentkey
-				}
-				if(this.currentModal=='update'){
-					console.log('this.selectedItem',this.selectedItem)
-					let {id,code,name,adminUserId,stationType}=this.selectedItem
-				
-					await updateLock(this.selectedItem,id).then(res=>{
-						console.log(res)
-					})
-				}
-				this.navigateTo({
-					type: 'closemodal',
-					id: 'detail'
-				});
-				this.init()
-			},
+		async createOrupdate(){
+		  if(this.currentModal=='create'){
+		    this.logDebug('开始添加锁具操作');
+		    this.logDebug('选择的表单数据', this.selectedItem);
+		    this.logDebug('设备基础信息', this.baseDataFromB);
+		    this.logDebug('当前用户ID', this.currentUser.id);
+		    
+		    // 显示加锁中模态框
+		    this.showLoadingModal('步骤1/5: 初始化设备添加...');
+		    await new Promise(resolve => setTimeout(resolve, 800));
+		    
+		    this.logDebug('设备MAC地址', this.deviceId.replace(/:/g, '').toLowerCase());
+		    
+		    // 更新模态框显示 - 步骤2
+		    this.showLoadingModal('步骤2/5: 连接设备中...');
+		    await new Promise(resolve => setTimeout(resolve, 1500));
+		    
+		    // 更新模态框显示 - 步骤3
+		    this.showLoadingModal('步骤3/5: 发送设备初始化指令...');
+		    await getLock01Cmd({Roll:this.roll,Mac:this.deviceId.replace(/:/g, '').toLowerCase()}).then(res=>{
+		      this.logDebug('获取01cmd指令返回', res);
+		      let ins=[]
+		      ins.push(res.data.data['cmd']);
+		      this.logDebug('准备发送01cmd指令', ins);
+		      this.sendUnlockInstruct1(ins);
+		    }).catch(err => {
+		      this.logDebug('获取01cmd指令失败', err);
+		    });
+
+		    // 等待指令处理完成
+		    await new Promise(resolve => setTimeout(resolve, 2000));
+		    this.logDebug('01cmd指令处理完成，roll值', this.roll);
+		    
+		    //根据id取10命令，请求10命令更改密钥
+		    let curkey=null;
+		    
+		    // 更新模态框显示 - 步骤4
+		    this.showLoadingModal('步骤4/5: 更新设备密钥...');
+		    await getLock10Cmd({ Roll: this.roll,Mac:this.deviceId.replace(/:/g, '').toLowerCase() })
+		      .then(async res => {
+		        this.logDebug('获取10cmd指令返回', res);
+		        let ins=[]
+		        curkey=res.data.data['key'];
+		        this.logDebug('获取到新密钥', curkey);
+		        ins.push(res.data.data['cmd']);
+		        this.logDebug('准备发送10cmd指令', ins);
+		        await this.sendUnlockInstruct1(ins);
+		      }).catch(err => {
+		        this.logDebug('获取10cmd指令失败', err);
+		      });
+		    
+		    // 等待密钥更新完成
+		    await new Promise(resolve => setTimeout(resolve, 2000));
+		    this.logDebug('10cmd指令处理完成，roll值', this.roll);
+		    
+		    if(this.roll===0){
+		      this.logDebug('Roll值为0，添加失败');
+		      this.hideLoadingModal();
+		      uni.showToast({
+		        title: '添加失败！请重新添加锁具！',
+		        icon: 'none',
+		        duration: 2000
+		      });
+		      await uni.closeBLEConnection({ deviceId: this.deviceId });
+		      this.devices=[]
+		    }else{
+		      // 更新模态框显示 - 步骤5
+		      this.showLoadingModal('步骤5/5: 保存设备信息...');
+		      
+		      // 准备保存的锁具数据
+		      const lockData = {
+		        adminId: this.currentUser.id,
+		        enable: true,
+		        ...this.selectedItem,
+		        ...this.baseDataFromB,
+		        ...this.someDataFromB
+		      };
+		      this.logDebug('准备保存锁具数据', lockData);
+		      
+		      await addLock(lockData).then(res=>{
+		        this.lockId=res.data.data;
+		        this.logDebug('锁具保存成功，获取到锁ID', this.lockId);
+		      }).catch(err => {
+		        this.logDebug('锁具保存失败', err);
+		      });
+		      
+		      await updateLock({currentKey:curkey,id:this.lockId},this.lockId).then(res=>{
+		        this.logDebug('更新锁具密钥成功', res);
+		      }).catch(err => {
+		        this.logDebug('更新锁具密钥失败', err);
+		      });
+		      
+		      			      // 显示添加成功提示
+			      this.hideLoadingModal();
+			      uni.showToast({
+			        title: '添加成功！',
+			        icon: 'success',
+			        duration: 2000
+			      });
+		    }
+		  }
+		  
+		  if(this.currentModal=='update'){
+		    this.logDebug('开始更新锁具', this.selectedItem);
+		    let {id,code,name,adminUserId,stationType}=this.selectedItem;
+		    
+		    this.showLoadingModal('正在更新设备信息...');
+		    await updateLock(this.selectedItem,id).then(res=>{
+		      this.logDebug('更新锁具成功', res);
+		      this.hideLoadingModal();
+		      uni.showToast({
+		        title: '更新成功！',
+		        icon: 'success',
+		        duration: 2000
+		      });
+		    }).catch(err => {
+		      this.logDebug('更新锁具失败', err);
+		      this.hideLoadingModal();
+		    });
+		  }
+		  this.navigateTo({
+		    type: 'closemodal',
+		    id: 'detail'
+		  });
+		  this.init()
+		},
 			// 多选处理
 					selectedItems() {
 						return this.selectedIndexs.map(i => this.stationList[i]['id'])
@@ -432,22 +849,27 @@ import store from '@/store/index.js';
 					if(type=='batch'){
 						console.log('selectedItems',this.selectedItems())
 						let ids=this.selectedItems()
+						this.showLoadingModal('批量删除设备中...');
 						await deleteLocks({ids:ids}).then(res=>{
 							console.log('xxxxxxxxxx',res)
+							this.hideLoadingModal();
 							if(res.data.code==10002){
 								uni.clearStorageSync()
 								this.navigateTo({
 								  type: 'page',
 								  url: 'login'
 								});
+							} else {
+								uni.showToast({
+								  title: '删除成功！',
+								  icon: 'success',
+								  duration: 2000
+								});
 							}
-						
-						
 						})
 					}else{
 						let ins = [];
 						// 根据 step.lockId 在 lockList 中查找对应的锁信息
-						// console.log('locki', this.lockList);
 						let curlock = item
 						this.currentLock=curlock
 						if (!curlock) {
@@ -459,59 +881,100 @@ import store from '@/store/index.js';
 						  return;
 						}
 						
+						this.showLoadingModal('步骤1/5: 初始化删除操作...');
 						// 蓝牙模块中，扫描到的设备，其 deviceId（去掉冒号并转为小写）作为 mac 值
 						let targetMac = curlock.mac.toLowerCase();
-						// console.log('targetMac',curlock)
 						// 触发蓝牙扫描（内部会调用 openBluetoothAdapter、getBluetoothAdapterState、findBluetooth 等）
-						 this.openBluetoothAdapter();
-						// console.log('devices',this.devices)
-						// 等待6秒，确保扫描结果已经更新到 this.devices 中
+						this.openBluetoothAdapter();
+						
+						// 等待蓝牙扫描结果更新（优化为更合理的时间）
 						setTimeout(async () => {
 						  // 在扫描到的设备数组（this.devices）中查找与 targetMac 匹配的设备
+						  this.showLoadingModal('步骤2/5: 扫描附近设备...');
 						  const device = this.devices.find(dev => {
 						    const devMac = dev.deviceId.replace(/:/g, '').toLowerCase();
 						    return devMac === targetMac;
 						  });
 						  
-						  // console.log('rollz', this.roll);
-						  // console.log('device',device)
 						  if (device) {
-						   
 						    // 调用蓝牙连接方法
-										  // console.log('device',device)
+							this.showLoadingModal('步骤3/5: 连接设备中...');
 							this.device=device
 						    this.connectBluetoothDevice(device);
-						    
-						    // 增加等待时间（例如 3 秒），让连接有足够时间完成
-						    await new Promise(resolve => setTimeout(resolve, 6000));
-						    
-						    console.log('蓝牙设备已连接, roll:', this.roll);
-						    
-						  // 发送开锁指令（类型 0x01）
+							
+							// 增加等待时间，让连接有足够时间完成（改为更合理的时间）
+							await new Promise(resolve => setTimeout(resolve, 2500));
+							
+							this.showLoadingModal('步骤4/5: 发送初始化指令...');
+							await getLockCmd({ id: this.currentLock.id, roll: this.roll, type: 0x01 })
+							  .then(async res => {
+							console.log('蓝牙设备roll1111111:', this.roll);
+							let ins=[]
+							
+							ins.push(res.data.data['cmd']);
+							await this.sendUnlockInstruct1(ins);
+						
+						  });
+						if(this.roll==0){
+							this.roll+=1
+						}
+						
+						// 等待初始化指令处理完成
+						await new Promise(resolve => setTimeout(resolve, 2000));
+							  
+						this.showLoadingModal('步骤5/5: 解绑设备...');
+						  // 发送指令（类型 0x1F）
 						  await getLockCmd({ id: this.currentLock.id, roll: this.roll, type: 0x1F })
-						    .then(res => {
-											let ins1F=[]
-						      // console.log(res);
-						      ins1F.push(res.data.data['cmd']);
-											// ins1.push('0100000dc1020101e1b219020800241ac6')
-											this.sendUnlockInstruct1(ins1F);
+						    .then(async res => {
+								console.log('蓝牙设备rollffffffffff:', this.roll);
+								let ins1F=[]
+							ins1F.push(res.data.data['cmd']);
+							await this.sendUnlockInstruct1(ins1F);
+							// 等待解绑指令处理完成
+							await new Promise(resolve => setTimeout(resolve, 1500));
+							
+							await deleteLocks({ids:[item.id]}).then(res=>{
+								console.log('xxxxxxxxxx',res)
+								this.hideLoadingModal();
+								if(res.data.code==10002){
+									uni.clearStorageSync()
+									this.navigateTo({
+									  type: 'page',
+									  url: 'login'
+									});
+								} else {
+									uni.showToast({
+									  title: '删除成功！',
+									  icon: 'success',
+									  duration: 2000
+									});
+								}
 						    });
-								
-										
-									
+				
+							this.devices=[]
+							
+							}).catch(err=>{
+								this.hideLoadingModal();
+								uni.showToast({
+								  title: err,
+								  icon: 'none',
+								  duration: 2000
+								});
+							})		
+							
+							this.init()		
+							
 						  } else {
 						    // 未找到设备给出提示
+							this.hideLoadingModal();
 						    uni.showToast({
 						      title: '未找到对应的蓝牙设备，请确认设备是否已开启',
 						      icon: 'none',
 						      duration: 2000
 						    });
 						  }
-						}, 6000);
+						}, 4000); // 蓝牙扫描等待时间增加到4秒，提高设备查找成功率
 					}
-				
-						this.init()
-					//deleteStation
 				},
 				async getData(index){
 					await	 getLockList({pageNo:index}).then(res=>{
@@ -530,7 +993,7 @@ import store from '@/store/index.js';
 		
 			async onSearch(){
 				await  getLockList({sn:this.searchKeyword}).then(res=>{
-				console.log(res)
+				console.log('onSearch',this.searchKeyword,res)
 				if(res.data.code==10002){
 					uni.clearStorageSync()
 					this.navigateTo({
@@ -544,7 +1007,7 @@ import store from '@/store/index.js';
 				
 			},
 			async init() {
-		await getLockList().then(res=>{
+		await getLockList({pageNo: this.pageCurrent}).then(res=>{
 		console.log('xxxxxxxxx',res)
 		if(res.data.code==10002){
 			uni.clearStorageSync()
@@ -727,6 +1190,12 @@ import store from '@/store/index.js';
 	  font-size: 24rpx;
 	  box-sizing: border-box;
 	}
+	
+	/* 模态框居中显示 */
+	.diygw-modal.basic {
+	
+	}
+	
 	.flex2-clz {
 		margin-left: 0px;
 		width: 100% !important;
@@ -1054,6 +1523,8 @@ import store from '@/store/index.js';
 		z-index: 1000000;
 	}
 	.diygw-dialog-return {
+		width: 95%; /* 或具体宽度如 600rpx */
+		max-width: 800rpx;
 	}
 	.text28-clz {
 		padding-top: 5px;
@@ -1084,6 +1555,136 @@ import store from '@/store/index.js';
 		width: 100%;
 	}
 
+.diygw-dialog-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* 确保真正居中 */
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  width: 500rpx;
+  height: 300rpx;
+  padding: 30rpx;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
 
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.loading-icon {
+  margin-bottom: 20rpx;
+}
+
+.loading-spinner {
+  width: 90rpx;
+  height: 90rpx;
+  border: 6rpx solid #f3f3f3;
+  border-top: 6rpx solid #007aff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #333;
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 20rpx;
+}
+
+/* 添加进度条样式 */
+.progress-bar {
+  width: 100%;
+  height: 10rpx;
+  background-color: #f3f3f3;
+  border-radius: 5rpx;
+  margin-top: 20rpx;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #007aff;
+  border-radius: 5rpx;
+  width: 20%; /* 默认值 */
+  transition: width 0.3s ease-in-out;
+}
+
+/* 当步骤为 1/5 时 */
+.step-1 .progress-fill {
+  width: 20%;
+}
+
+/* 当步骤为 2/5 时 */
+.step-2 .progress-fill {
+  width: 40%;
+}
+
+/* 当步骤为 3/5 时 */
+.step-3 .progress-fill {
+  width: 60%;
+}
+
+/* 当步骤为 4/5 时 */
+.step-4 .progress-fill {
+  width: 80%;
+}
+
+/* 当步骤为 5/5 时 */
+.step-5 .progress-fill {
+  width: 100%;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* 调试信息弹窗样式 */
+.diygw-dialog-debug {
+  width: 90%;
+  max-width: 650rpx;
+  max-height: 80vh;
+}
+
+.debug-content {
+  margin: 20rpx 0;
+  border: 1px solid #eee;
+  border-radius: 8rpx;
+}
+
+.debug-log-item {
+  padding: 10rpx;
+  font-size: 24rpx;
+  border-bottom: 1px solid #f5f5f5;
+  word-break: break-all;
+  font-family: monospace;
+}
+
+.debug-log-item:nth-child(odd) {
+  background-color: #f9f9f9;
+}
+
+.button-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-row button {
+  margin: 0 4rpx;
+}
 
 </style>

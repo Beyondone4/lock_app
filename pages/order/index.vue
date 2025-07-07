@@ -267,12 +267,12 @@
 			            @click="handleValidate(step)">
 			            校验
 			          </button> -->
-			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://182.92.76.31:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
+			           <image v-if="step.status>=6&&step.task==3" style="width: 200px; height: 200px; background-color: #eeeeee;" :src="`http://118.31.245.112:8800/uploads/${step.imageUrl}`" mode="aspectFit" ></image>
 			
 			          <uni-file-picker 
 					 :disabled="step.sort>curStep"
 					  v-if="step.task === 3 && (step.status==3 || step.status==4)&&isOp" 
-			          	v-model="imageValue" 
+			          	v-model="step.imageUrl" 
 			          	fileMediatype="image" 
 			          	mode="grid" 
 						limit="1"
@@ -308,7 +308,7 @@
 			            上传状态
 			          </button> -->
 					  <button
-					   :disabled="step.sort> curStep&&step.status!=6"
+					   :disabled="!(step.sort=== curStep&&selectedItem.status!=6)"
 					    v-if="(step.task === 3 || step.task === 4)&& selectedItem.status>=3&&selectedItem.status!=10&&isOp" 
 					    type="primary" 
 					    size="mini" 
@@ -317,7 +317,7 @@
 					  </button>
 					<!--  当是审核员或者超级管理员的时候可见，当该自己审批的时候才可用 -->
 					  <button
-					   :disabled="!(step.reviewerId===userid&&step.status===6)"
+					   :disabled="!(step.reviewerId===userid&&selectedItem.status===6)"
 					    v-if="isReview&&step.task>=3 &&selectedItem.status<10" 
 					    type="primary" 
 					    size="mini" 
@@ -564,7 +564,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 			isDispatch(){
 				let roles=uni.getStorageSync('user').roles
 				
-				const hasId5 = roles.some(item => item.id === 6)
+				const hasId5 = roles.some(item => item.id === 6||item.id===1)
 				console.log('roles',hasId5)
 				return hasId5
 			},
@@ -576,22 +576,29 @@ import bluetooth from '../../mixins/bluetooth.js'
 				return hasId5
 			},
 			curStep(){
-				let nowstep
+				if(!this.selectedItem || !this.selectedItem.orderSteps){
+					return 0; // 返回默认值以避免错误
+				}
+				let nowstep;
 				if(this.selectedItem.status===3||this.selectedItem.status===1){
 					 nowstep = this.selectedItem.orderSteps.find(item => item.status===3)||this.selectedItem.orderSteps.find(item => item.status===4)
 				}else if(this.selectedItem.status===6){
 					 nowstep =this.selectedItem.orderSteps.find(item => item.status===6)
 				}else if(this.selectedItem.status===8||this.selectedItem.status===10){
-					 const stepsWithStatus7 = this.selectedItem.orderSteps.filter(item => item.status === 7);
+					
+					 let stepsWithStatus7 = this.selectedItem.orderSteps.filter(item => item.status === 7);
 					 console.log('step',stepsWithStatus7)
+					 if(stepsWithStatus7.length==0){
+						 stepsWithStatus7 = this.selectedItem.orderSteps.filter(item => item.status === 5);
+					 }
 					  nowstep = stepsWithStatus7.length ? stepsWithStatus7[stepsWithStatus7.length - 1] : undefined;
 
 				}else if(this.selectedItem.status===-1){
 					 nowstep =this.selectedItem.orderSteps.find(item => item.status===3)
 				}
 				
-				console.log('this.selectedItem',this.selectedItem)
-				return nowstep.sort
+		        // 添加空值检查，防止nowstep为undefined时访问sort属性导致错误
+				return nowstep && nowstep.sort ? nowstep.sort : 0;
 			},
 
 		
@@ -643,21 +650,16 @@ import bluetooth from '../../mixins/bluetooth.js'
 	
 			this.init();
 			this.timer = setInterval(async() => {
-			  console.log('xxxxxxxxxxxxxxx')
-					
-				if(this.selectedItem){
-					this.loading=true
-					await this.getData(this.pageCurrent)
-					this.loading=false
-				}
-		
-				  		
-			
-					
-						//将当前的
-			}, 10000) // 每 5 秒请求一次
-
-	
+                // 移除条件判断，确保每次都执行刷新
+                this.loading = true
+                await this.getData(this.pageCurrent)
+                // 只有当currentLock存在时才操作它
+                if(this.currentLock) {
+                    // 这里可能是想保存当前锁的引用
+                    this.currentLock = this.currentLock
+                }
+                this.loading = false
+			}, 10000) // 每 10 秒请求一次
 		},
 		methods: {
 			closeDetail(){
@@ -735,7 +737,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 				getImg('20250207121400_1738901637543.jpg').then(res=>{
 					// let datas = res.data;
 					// this.imageData =  '/f/20250207121400_1738901637543.jpg'
-					this.imageData='http://182.92.76.31:8800/uploads/20250207121400_1738901637543.jpg'
+					this.imageData='http://118.31.245.112:8800/uploads/20250207121400_1738901637543.jpg'
 				  // const base64 = uni.arrayBufferToBase64(res.data);
 				  //   this.imageData = `data:image/jpeg;base64,${base64}`;
 					console.log('imgres', res)
@@ -826,24 +828,41 @@ import bluetooth from '../../mixins/bluetooth.js'
 			//     ins.push(res.data.data['cmd']);
 			// 	thiz.sendUnlockInstruct1(ins);
 			//   });
+			//Todo:先判断是否确认中，如果确认中就不提交，不是的话就提交。
 			thiz.currentStep=step
 			await getLockCmd({ id: step.lockId, roll: this.roll, type: 0xE0 })
 			  .then(async res => {
 			// console.log('蓝牙设备roll:', this.roll);
 			// console.log(res);
 			let ins=[]
-			
+			console.log('unlockStep',step)
 			ins.push(res.data.data['cmd']);
 			thiz.sendUnlockInstruct1(ins);
-	
+			
 			  });
+		if(this.roll>0){
+			let stepform={
+								  id:step.id,
+								  orderId:step.orderId,
+								  task:step.task,
+								  status:5,			 
+			}
+			if(step.status!=5){
+				await stepOrder(stepform,step.id).then(res=>{
+				  console.log(res)
+				
+			})
+			}
+		}
 			
 		},
 	async handleUnlock(step) {
 		 let ins = [];
 	  // 根据 step.lockId 在 lockList 中查找对应的锁信息
 	  // console.log('locki', this.lockList);
-	  let curlock = this.lockList.find(lock => lock.id === step.lockId);
+	  let curlock = this.lockList.find(lock => {
+		  return lock.id === step.lockId
+	  });
 	  this.currentLock=curlock
 	  if (!curlock) {
 	    uni.showToast({
@@ -877,20 +896,35 @@ import bluetooth from '../../mixins/bluetooth.js'
 	      this.connectBluetoothDevice(device);
 	      this.device=device
 	      // 增加等待时间（例如 3 秒），让连接有足够时间完成
-	      await new Promise(resolve => setTimeout(resolve, 6000));
-	      
+	    
+	      await new Promise(resolve => setTimeout(resolve, 3000));
 	      // console.log('蓝牙设备已连接, roll:', this.roll);
-	      
+	      console.log('step.lockId',step.lockId,'roll',this.roll)
 	    // 发送开锁指令（类型 0x01）
+			
 	    await getLockCmd({ id: step.lockId, roll: this.roll, type: 0x01 })
-	      .then(res => {
+	      .then(async res => {
 			let ins01=[]
-	        // console.log(res);
+	        console.log('getLockCmd',res);
 	        ins01.push(res.data.data['cmd']);
 			// ins1.push('0100000dc1020101e1b219020800241ac6')
+			console.log('getLock01ins',ins01)
 			this.sendUnlockInstruct1(ins01);
+			
 	      });
-		await  this.Unlock(step)
+
+		   
+		  await new Promise(resolve => setTimeout(resolve, 3000));
+		  console.log('this.roll',this.roll)
+		  if(this.roll>0){
+			  this.roll+=1
+			  await  this.Unlock(step)
+		  }else{
+			  this.roll+=1
+			  await  this.Unlock(step)
+	
+		  }
+		
 		
 	
 	    } else {
@@ -928,7 +962,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 			  upload  (filename, file) {
 				  let thiz=this
 			    return uni.uploadFile({
-			      url: 'http://182.92.76.31:8800/f/' + filename,  // 上传的 URL
+			      url: 'http://118.31.245.112:8800/f/' + filename,  // 上传的 URL
 			      // file: file,         // 选择的文件路径
 			  
 			  	header:{
@@ -969,7 +1003,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 					  stepform.imageUrl=this.currentImg
 					  await stepOrder(stepform,step.id).then(res=>{
 						  console.log(res)
-					this.selectedItem.status=6
+					// this.selectedItem.status=6
 						 
 					  })
 				  }
@@ -978,7 +1012,7 @@ import bluetooth from '../../mixins/bluetooth.js'
 					  console.log('step.comment',stepform)
 					 await stepOrder(stepform,step.id).then(res=>{
 					 						  console.log('sss',res)
-					 			 	this.selectedItem.status=6
+					 			
 					
 					 })
 				  }
@@ -1048,8 +1082,16 @@ import bluetooth from '../../mixins/bluetooth.js'
 					}
 					this.orderList=res.data.data.pageData
 				
-					
-				
+					if(this.selectedItem && this.selectedItem.id) {
+						let uporder=this.orderList.find((item)=>{
+							return  this.selectedItem.id===item.id
+						})
+						console.log('uporder',uporder)
+                        // 只有当找到匹配项时才更新selectedItem
+                        if(uporder) {
+                            this.selectedItem=uporder
+                        }
+					}
 				})
 			}
 			if(this.userRole===2){
@@ -1057,16 +1099,23 @@ import bluetooth from '../../mixins/bluetooth.js'
 				getOrderList({pageNo:index,all:1,reviewerId:this.userid}).then(res=>{
 					
 					if(res.data.code==10002){
-						uni.clearStorageSync()
-						this.navigateTo({
-						  type: 'page',
-						  url: 'login'
-						});
-					}
+							uni.clearStorageSync()
+							this.navigateTo({
+							  type: 'page',
+							  url: 'login'
+							});
+						}
 					this.orderList=res.data.data.pageData
-					
-					
-				
+					if(this.selectedItem && this.selectedItem.id) {
+						let uporder=this.orderList.find((item)=>{
+							return  this.selectedItem.id===item.id
+						})
+						console.log('uporder',uporder)
+                        // 只有当找到匹配项时才更新selectedItem
+                        if(uporder) {
+                            this.selectedItem=uporder
+                        }
+					}
 				})
 			}
 			if(this.userRole===5){
@@ -1082,8 +1131,16 @@ import bluetooth from '../../mixins/bluetooth.js'
 					}
 					this.orderList=res.data.data.pageData
 				
-					
-				
+					if(this.selectedItem && this.selectedItem.id) {
+						let uporder=this.orderList.find((item)=>{
+							return  this.selectedItem.id===item.id
+						})
+						console.log('uporder',uporder)
+                        // 只有当找到匹配项时才更新selectedItem
+                        if(uporder) {
+                            this.selectedItem=uporder
+                        }
+					}
 				})
 			}
 			if(this.userRole===6){
@@ -1098,12 +1155,16 @@ import bluetooth from '../../mixins/bluetooth.js'
 						});
 					}
 					this.orderList=res.data.data.pageData
-					// if(this.selectedItem){
-					// this.selectedItem=	res.data.data.pageData.find(item=>item.id===this.selectedItem.id)
-					// console.log(this.selectedItem)
-					// }
-					
-				
+					if(this.selectedItem && this.selectedItem.id) {
+						let uporder=this.orderList.find((item)=>{
+							return  this.selectedItem.id===item.id
+						})
+						console.log('uporder',uporder)
+                        // 只有当找到匹配项时才更新selectedItem
+                        if(uporder) {
+                            this.selectedItem=uporder
+                        }
+					}
 				})
 			}
 			if(this.userRole===9){
@@ -1118,9 +1179,18 @@ import bluetooth from '../../mixins/bluetooth.js'
 						});
 					}
 					this.orderList=res.data.data.pageData
-				
-					
-				
+					console.log('orderList',this.orderList)
+					console.log('selectedItem',this.selectedItem)
+                    if(this.selectedItem && this.selectedItem.id) {
+                        let uporder=this.orderList.find((item)=>{
+                            return this.selectedItem.id==item.id
+                        })
+                        console.log('uporder',uporder)
+                        // 只有当找到匹配项时才更新selectedItem
+                        if(uporder) {
+                            this.selectedItem=uporder
+                        }
+                    }
 				})
 			}
 	
@@ -1362,7 +1432,8 @@ import bluetooth from '../../mixins/bluetooth.js'
 						 this.operatorList =this.humansData.filter(item => item.roles[0].id === 9)
 			
 				}
-			console.log('this.reviewerList',this.humansData)
+				console.log('this.humansData',this.humansData)
+			console.log('this.reviewerList',this.operatorList)
 				this.navigateTo({
 					type: 'openmodal',
 					id: 'add'

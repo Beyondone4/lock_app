@@ -17,7 +17,7 @@ export const refreshToken= (params)=>{
 }
 export const upload = (filename, file) => {
   return uni.uploadFile({
-    url: 'http://182.92.76.31:8800/f/' + filename,  // 上传的 URL
+    url: 'http://118.31.245.112:8800/f/' + filename,  // 上传的 URL
     // file: file,         // 选择的文件路径
 
 	header:{
@@ -184,6 +184,13 @@ export const updateLock = (params={},id) => {
  	        params: params
  })
 }
+export const MupdateLock = (params={},mac) => {
+ return 	request({
+ 			method: 'PATCH',
+ 	        url: '/lockbymac/'+mac,
+ 	        params: params
+ })
+}
 export const updateStation = (params={},id) => {
  return 	request({
  			method: 'PATCH',
@@ -237,6 +244,20 @@ export const getLockCmd = (params={}) => {
  return 	request({
  			method: 'POST',
  	        url: '/lock/command',
+ 	        params: params
+ })
+}
+export const getLock01Cmd = (params={}) => {
+ return 	request({
+ 			method: 'POST',
+ 	        url: '/lock/cmd01',
+ 	        params: params
+ })
+}
+export const getLock10Cmd = (params={}) => {
+ return 	request({
+ 			method: 'POST',
+ 	        url: '/lock/cmd10',
  	        params: params
  })
 }

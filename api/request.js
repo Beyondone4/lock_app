@@ -1,7 +1,7 @@
 const url_all = {
 	'DEV': `/api`, // 开发
-	// 'APP': `http://118.31.245.112:8800`,
-	'APP': `http://182.92.76.31:8800`,
+	'APP': `http://118.31.245.112:8800`,
+	// 'APP': `http://182.92.76.31:8800`,
 }
 
 
@@ -18,9 +18,7 @@ function handleRequest(options, resolve, reject) {
 	const token = uni.getStorageSync('token')
 	const model= uni.getStorageSync('runModel')
 	let BASEURL=model=='PC'?url_all['DEV']:url_all['APP']
-	uni.showLoading({
-		title: "加载中"
-	});
+	
 		const loginTime = uni.getStorageSync('loginTime')
 		const now = Date.now()
 		const sevenDays = 7 * 24 * 60 * 60 * 1000  // 7天的毫秒数
